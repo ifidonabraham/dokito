@@ -127,7 +127,7 @@ export function DokitaChat() {
   const handleSendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
-    if (!input.trim()) return;
+    if (!input || !input.trim()) return;
 
     // Detect language
     const detectedLang = detectLanguage(input);
@@ -379,7 +379,7 @@ export function DokitaChat() {
           <Button
             type="submit"
             size="icon"
-            disabled={!input.trim() || isLoading}
+            disabled={!input || !input.trim() || isLoading}
             className="shrink-0"
           >
             <Send className="h-5 w-5" />

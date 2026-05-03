@@ -127,7 +127,7 @@ export function DokitaChat() {
   const handleSendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
-    if (!input.trim()) return;
+    if (!input || !input.trim()) return;
 
     // Detect language
     const detectedLang = detectLanguage(input);

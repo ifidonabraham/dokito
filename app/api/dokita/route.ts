@@ -1,25 +1,46 @@
-import { streamText, convertToModelMessages, UIMessage, consumeStream } from "ai";
+import { streamText, convertToModelMessages, UIMessage } from "ai";
+import { openai } from "@ai-sdk/openai";
 
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
-  const { messages, language = "en" }: { messages: UIMessage[]; language?: string } = await request.json();
+  try {
+    const { messages, language = "en" }: { messages: UIMessage[]; language?: string } = await request.json();
 
-  // Build system prompt based on documents
-  const systemPrompt = buildDokitaSystemPrompt(language);
+    // Build system prompt based on documents
+    const systemPrompt = buildDokitaSystemPrompt(language);
 
-  const result = streamText({
-    model: "openai/gpt-4o-mini",
-    system: systemPrompt,
-    messages: await convertToModelMessages(messages),
-    temperature: 0.7,
-    maxOutputTokens: 1000,
-    abortSignal: request.signal,
-  });
+    // Use OpenAI directly if OPENAI_API_KEY is set, otherwise use AI Gateway
+    const model = process.env.OPENAI_API_KEY 
+      ? openai("gpt-4o-mini")
+      : "openai/gpt-4o-mini";
 
-  return result.toUIMessageStreamResponse({
-    consumeSseStream: consumeStream,
-  });
+    const result = streamText({
+      model,
+      system: systemPrompt,
+      messages: await convertToModelMessages(messages),
+      temperature: 0.7,
+      maxOutputTokens: 1000,
+      abortSignal: request.signal,
+    });
+
+    return result.toUIMessageStreamResponse();
+  } catch (error) {
+    console.error("Dokita API Error:", error);
+    
+    // Return a friendly error message
+    const errorMessage = error instanceof Error && error.message.includes("credit card")
+      ? "The AI service requires setup. Please add your OPENAI_API_KEY in Settings > Vars, or add a credit card to your Vercel account."
+      : "Sorry, I'm having trouble connecting right now. Please try again in a moment.";
+    
+    return new Response(
+      JSON.stringify({ error: errorMessage }),
+      { 
+        status: 500, 
+        headers: { "Content-Type": "application/json" } 
+      }
+    );
+  }
 }
 
 function buildDokitaSystemPrompt(language: string): string {

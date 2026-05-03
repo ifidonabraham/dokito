@@ -72,13 +72,13 @@ export default function RootLayout({
           
           {/* Mobile Bottom Navigation */}
           <MobileBottomNav />
-          
-          {/* Emergency Button (always visible) */}
-          <EmergencyButton />
-          
-          {/* Emergency Modal */}
-          <EmergencyModal />
         </div>
+        
+        {/* Emergency Button (always visible, outside main container for proper z-index) */}
+        <EmergencyButton />
+        
+        {/* Emergency Modal */}
+        <EmergencyModal />
         
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

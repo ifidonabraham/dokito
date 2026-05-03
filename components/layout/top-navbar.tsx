@@ -155,33 +155,44 @@ export function TopNavbar() {
         </form>
       </div>
 
-      {/* Mobile Navigation Menu */}
+      {/* Mobile Navigation Overlay */}
       {isMobileMenuOpen && (
-        <nav className="lg:hidden border-t border-border bg-background px-4 py-4">
-          <div className="flex flex-col gap-2">
-            {[
-              { href: '/', label: 'Home' },
-              { href: '/records', label: 'Health Records' },
-              { href: '/ask', label: 'Ask Dokita' },
-              { href: '/facilities', label: 'Find Hospital' },
-              { href: '/appointments', label: 'Appointments' },
-            ].map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                  pathname === item.href
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                )}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
-        </nav>
+        <>
+          {/* Backdrop - click to close */}
+          <div 
+            className="lg:hidden fixed inset-0 top-16 bg-black/50 z-40"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+          
+          {/* Slide-out menu */}
+          <nav className="lg:hidden fixed left-0 top-16 bottom-0 w-72 bg-background border-r border-border z-50 overflow-y-auto animate-in slide-in-from-left duration-200">
+            <div className="flex flex-col gap-1 p-4">
+              {[
+                { href: '/', label: 'Home' },
+                { href: '/records', label: 'Health Records' },
+                { href: '/ask', label: 'Ask Dokita' },
+                { href: '/facilities', label: 'Find Hospital' },
+                { href: '/drugs', label: 'Drug Information' },
+                { href: '/profile', label: 'Profile' },
+              ].map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-4 py-3 text-base font-medium transition-colors',
+                    pathname === item.href
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-foreground hover:bg-secondary'
+                  )}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </nav>
+        </>
       )}
     </header>
   )

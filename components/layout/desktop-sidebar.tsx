@@ -66,11 +66,9 @@ export function DesktopSidebar() {
     }
     if (isOpen) {
       document.addEventListener('keydown', handleEscape)
-      document.body.style.overflow = 'hidden'
     }
     return () => {
       document.removeEventListener('keydown', handleEscape)
-      document.body.style.overflow = ''
     }
   }, [isOpen, close])
 
@@ -86,7 +84,7 @@ export function DesktopSidebar() {
             aria-hidden="true"
           />
           {/* Sidebar Panel */}
-          <aside className="absolute left-0 top-0 bottom-0 w-72 bg-background border-r border-border flex flex-col shadow-xl">
+          <aside className="absolute left-0 top-0 bottom-0 w-72 bg-background border-r border-border flex flex-col shadow-xl overflow-hidden">
             {/* Header with close button */}
             <div className="flex items-center justify-between h-14 px-4 border-b border-border shrink-0">
               <Link href="/" onClick={close} className="flex items-center gap-2 font-bold text-lg text-primary">
@@ -98,9 +96,10 @@ export function DesktopSidebar() {
                 <span className="sr-only">Close menu</span>
               </Button>
             </div>
-            <ScrollArea className="flex-1">
+            {/* Scrollable content area */}
+            <div className="flex-1 overflow-y-auto overscroll-contain">
               <SidebarContent pathname={pathname} onLinkClick={close} />
-            </ScrollArea>
+            </div>
             <SidebarFooter />
           </aside>
         </div>

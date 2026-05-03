@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Search, Menu, Bell, User, LogOut, Settings, FileText, Heart } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,19 +14,42 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { useAuthStore } from '@/stores/auth-store'
 import { useSidebarStore } from '@/stores/sidebar-store'
+import { createClient } from '@/lib/supabase/client'
+import type { User as SupabaseUser } from '@supabase/supabase-js'
 
 export function TopNavbar() {
-  const { user, isAuthenticated, signOut } = useAuthStore()
+  const router = useRouter()
+  const supabase = createClient()
   const { isOpen, toggle } = useSidebarStore()
   const [searchQuery, setSearchQuery] = useState('')
+  const [user, setUser] = useState<SupabaseUser | null>(null)
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+    }
+    getUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [supabase])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     if (searchQuery.trim()) {
-      window.location.href = `/ask?q=${encodeURIComponent(searchQuery)}`
+      router.push(`/?q=${encodeURIComponent(searchQuery)}`)
     }
+  }
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.push('/')
+    router.refresh()
   }
 
   const getInitials = (name: string) => {
@@ -37,11 +61,15 @@ export function TopNavbar() {
       .slice(0, 2)
   }
 
+  const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'
+  const userEmail = user?.email || ''
+  const userAvatar = user?.user_metadata?.avatar_url || ''
+
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-border bg-background">
         <div className="flex h-14 items-center gap-3 px-4">
-          {/* Mobile menu toggle - controls the sidebar */}
+          {/* Mobile menu toggle */}
           <Button
             variant="ghost"
             size="icon"
@@ -77,26 +105,25 @@ export function TopNavbar() {
           <div className="ml-auto flex items-center gap-2">
             <Button variant="ghost" size="icon" className="hidden sm:flex relative h-9 w-9">
               <Bell className="h-5 w-5" />
-              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
               <span className="sr-only">Notifications</span>
             </Button>
 
-            {isAuthenticated && user ? (
+            {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={user.avatar} alt={user.name} />
+                      <AvatarImage src={userAvatar} alt={userName} />
                       <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                        {getInitials(user.name)}
+                        {getInitials(userName)}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <div className="px-2 py-1.5">
-                    <p className="text-sm font-medium">{user.name}</p>
-                    <p className="text-xs text-muted-foreground">{user.email}</p>
+                    <p className="text-sm font-medium">{userName}</p>
+                    <p className="text-xs text-muted-foreground">{userEmail}</p>
                   </div>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
@@ -112,14 +139,14 @@ export function TopNavbar() {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/settings">
+                    <Link href="/appointments">
                       <Settings className="mr-2 h-4 w-4" />
-                      Settings
+                      Reminders
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    onClick={signOut}
+                    onClick={handleSignOut}
                     className="text-destructive focus:text-destructive"
                   >
                     <LogOut className="mr-2 h-4 w-4" />
@@ -128,8 +155,19 @@ export function TopNavbar() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button asChild variant="default" size="sm">
-                <Link href="/auth/signin">Sign In</Link>
+              <Button 
+                variant="default" 
+                size="sm"
+                onClick={async () => {
+                  await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                      redirectTo: `${window.location.origin}/auth/callback`,
+                    },
+                  })
+                }}
+              >
+                Sign In
               </Button>
             )}
           </div>
@@ -149,7 +187,6 @@ export function TopNavbar() {
           </form>
         </div>
       </header>
-
     </>
   )
 }

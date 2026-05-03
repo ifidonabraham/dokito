@@ -43,6 +43,17 @@ export function TopNavbar() {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-16 items-center gap-4 px-4 md:px-6">
+        {/* Mobile menu toggle - LEFT SIDE */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="lg:hidden shrink-0"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label="Toggle menu"
+        >
+          {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </Button>
+
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary">
           <Heart className="h-7 w-7 fill-primary text-primary-foreground" />
@@ -126,16 +137,7 @@ export function TopNavbar() {
             </Button>
           )}
 
-          {/* Mobile menu toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          >
-            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            <span className="sr-only">Toggle menu</span>
-          </Button>
+
         </div>
       </div>
 
@@ -155,7 +157,7 @@ export function TopNavbar() {
 
       {/* Mobile Navigation Menu */}
       {isMobileMenuOpen && (
-        <nav className="md:hidden border-t border-border bg-background px-4 py-4">
+        <nav className="lg:hidden border-t border-border bg-background px-4 py-4">
           <div className="flex flex-col gap-2">
             {[
               { href: '/', label: 'Home' },

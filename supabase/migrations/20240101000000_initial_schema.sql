@@ -1,8 +1,7 @@
 -- Dokita Health Database Schema
 -- Based on the 6 modules defined in the documentation
 
--- Enable necessary extensions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- Enable necessary extensions (gen_random_uuid is built into PostgreSQL 13+)
 
 -- =====================================================
 -- MODULE 1: Universal Patient Identity & Records (UHR)
@@ -30,7 +29,7 @@ CREATE TABLE public.profiles (
 
 -- Vitals tracking
 CREATE TABLE public.vitals (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   blood_pressure_systolic INTEGER,
   blood_pressure_diastolic INTEGER,
@@ -46,7 +45,7 @@ CREATE TABLE public.vitals (
 
 -- Medications
 CREATE TABLE public.medications (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   name TEXT NOT NULL,
   dosage TEXT NOT NULL,
@@ -63,7 +62,7 @@ CREATE TABLE public.medications (
 
 -- Allergies
 CREATE TABLE public.allergies (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   allergen TEXT NOT NULL,
   severity TEXT CHECK (severity IN ('mild', 'moderate', 'severe')) NOT NULL,
@@ -74,7 +73,7 @@ CREATE TABLE public.allergies (
 
 -- Medical conditions
 CREATE TABLE public.conditions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   name TEXT NOT NULL,
   diagnosed_date DATE,
@@ -89,7 +88,7 @@ CREATE TABLE public.conditions (
 -- =====================================================
 
 CREATE TABLE public.chat_sessions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   title TEXT,
   language TEXT DEFAULT 'en',
@@ -99,7 +98,7 @@ CREATE TABLE public.chat_sessions (
 );
 
 CREATE TABLE public.chat_messages (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID REFERENCES public.chat_sessions(id) ON DELETE CASCADE NOT NULL,
   role TEXT CHECK (role IN ('user', 'assistant', 'system')) NOT NULL,
   content TEXT NOT NULL,
@@ -112,7 +111,7 @@ CREATE TABLE public.chat_messages (
 -- =====================================================
 
 CREATE TABLE public.saved_facilities (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   place_id TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -131,7 +130,7 @@ CREATE TABLE public.saved_facilities (
 
 -- Health programs (Hypertension, Diabetes, Antenatal)
 CREATE TABLE public.health_programs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   program_type TEXT CHECK (program_type IN ('hypertension', 'diabetes', 'antenatal', 'general')) NOT NULL,
   enrolled_at TIMESTAMPTZ DEFAULT NOW(),
@@ -142,7 +141,7 @@ CREATE TABLE public.health_programs (
 
 -- Medication reminders log
 CREATE TABLE public.medication_logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   medication_id UUID REFERENCES public.medications(id) ON DELETE CASCADE NOT NULL,
   scheduled_time TIMESTAMPTZ NOT NULL,
   taken_at TIMESTAMPTZ,
@@ -153,7 +152,7 @@ CREATE TABLE public.medication_logs (
 
 -- Emergency history
 CREATE TABLE public.emergency_logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   emergency_type TEXT,
   symptoms TEXT[],

@@ -1,21 +1,44 @@
-import { streamText } from "ai";
-import { gateway } from "@ai-sdk/gateway";
+import { streamText, convertToModelMessages, UIMessage } from "ai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+
+export const maxDuration = 30;
 
 export async function POST(request: Request) {
-  const { messages, language = "en" } = await request.json();
+  try {
+    const { messages, language = "en" }: { messages: UIMessage[]; language?: string } = await request.json();
 
-  // Build system prompt based on documents
-  const systemPrompt = buildDokitaSystemPrompt(language);
+    // Build system prompt based on documents
+    const systemPrompt = buildDokitaSystemPrompt(language);
 
-  const result = streamText({
-    model: gateway("openai/gpt-4o-mini"),
-    system: systemPrompt,
-    messages,
-    temperature: 0.7,
-    maxTokens: 1000,
-  });
+    // Initialize OpenRouter with API key
+    const openrouter = createOpenRouter({
+      apiKey: process.env.OPENROUTER_API_KEY,
+    });
 
-  return result.toDataStreamResponse();
+    const result = streamText({
+      model: openrouter("openai/gpt-4o-mini"),
+      system: systemPrompt,
+      messages: await convertToModelMessages(messages),
+      temperature: 0.7,
+      maxOutputTokens: 1000,
+      abortSignal: request.signal,
+    });
+
+    return result.toUIMessageStreamResponse();
+  } catch (error) {
+    console.error("Dokita API Error:", error);
+    
+    // Return a friendly error message
+    const errorMessage = "Sorry, I'm having trouble connecting right now. Please try again in a moment.";
+    
+    return new Response(
+      JSON.stringify({ error: errorMessage }),
+      { 
+        status: 500, 
+        headers: { "Content-Type": "application/json" } 
+      }
+    );
+  }
 }
 
 function buildDokitaSystemPrompt(language: string): string {

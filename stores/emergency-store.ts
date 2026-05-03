@@ -7,9 +7,11 @@ import type { Facility, SupportedLanguage, EmergencyState } from '@/lib/types'
 
 interface EmergencyStore extends EmergencyState {
   // Actions
-  startEmergency: () => void
-  endEmergency: () => void
-  setLocation: (coords: GeolocationCoordinates) => void
+  activateEmergency: () => void
+  deactivateEmergency: () => void
+  setUserLocation: (location: { lat: number; lng: number }) => void
+  findNearestFacilities: (location: { lat: number; lng: number }) => void
+  setActiveView: (view: 'map' | 'voice') => void
   setDestination: (facility: Facility | null) => void
   updateJourney: (eta: number, distance: number, progress: number) => void
   addSymptomAnswer: (questionId: string, answer: string) => void
@@ -18,8 +20,17 @@ interface EmergencyStore extends EmergencyState {
   reset: () => void
 }
 
-const initialState: EmergencyState = {
+const initialState: EmergencyState & { 
+  isEmergencyMode: boolean
+  activeView: 'map' | 'voice'
+  userLocation: { lat: number; lng: number } | null
+  nearestFacilities: Facility[]
+} = {
   isActive: false,
+  isEmergencyMode: false,
+  activeView: 'map',
+  userLocation: null,
+  nearestFacilities: [],
   isVoiceActive: false,
   currentLocation: null,
   destination: null,
@@ -32,11 +43,12 @@ const initialState: EmergencyState = {
   journeyId: null,
 }
 
-export const useEmergencyStore = create<EmergencyStore>((set) => ({
+export const useEmergencyStore = create<EmergencyStore & typeof initialState>((set) => ({
   ...initialState,
 
-  startEmergency: () => set({
+  activateEmergency: () => set({
     isActive: true,
+    isEmergencyMode: true,
     isVoiceActive: true,
     journeyStartTime: new Date().toISOString(),
     journeyId: `emg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
@@ -44,13 +56,25 @@ export const useEmergencyStore = create<EmergencyStore>((set) => ({
     symptomAnswers: {},
   }),
 
-  endEmergency: () => set({
+  deactivateEmergency: () => set({
     isActive: false,
+    isEmergencyMode: false,
     isVoiceActive: false,
   }),
 
-  setLocation: (coords) => set({
-    currentLocation: coords,
+  setUserLocation: (location) => set({
+    userLocation: location,
+  }),
+
+  findNearestFacilities: () => set((state) => {
+    // This would normally call an API - for now we set mock facilities
+    return {
+      nearestFacilities: state.nearestFacilities,
+    }
+  }),
+
+  setActiveView: (view) => set({
+    activeView: view,
   }),
 
   setDestination: (facility) => set({

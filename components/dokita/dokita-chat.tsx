@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
 import { 
   Send, 
   Mic, 
@@ -20,7 +21,7 @@ import { Card } from "@/components/ui/card";
 import { useChatStore } from "@/stores/chat-store";
 import { useEmergencyStore } from "@/stores/emergency-store";
 import { detectLanguage } from "@/lib/language-detection";
-import { checkForEmergency } from "@/lib/safety-engine";
+import { emergencyCheck } from "@/lib/safety-engine";
 import { cn } from "@/lib/utils";
 
 const LANGUAGES = [
@@ -38,8 +39,18 @@ const SUGGESTED_PROMPTS = [
   "I need help managing my diabetes",
 ];
 
+// Helper to extract text from UIMessage parts
+function getMessageText(message: { parts?: Array<{ type: string; text?: string }> }): string {
+  if (!message.parts || !Array.isArray(message.parts)) return "";
+  return message.parts
+    .filter((p): p is { type: "text"; text: string } => p.type === "text" && typeof p.text === "string")
+    .map((p) => p.text)
+    .join("");
+}
+
 export function DokitaChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<typeof LANGUAGES[number]["code"]>("en");
@@ -51,41 +62,28 @@ export function DokitaChat() {
     setCurrentSession,
     addMessage,
     getCurrentSession,
-    deleteSession,
   } = useChatStore();
   
-  const { activateEmergency, setEmergencyType } = useEmergencyStore();
+  const { activateEmergency } = useEmergencyStore();
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages } = useChat({
-    api: "/api/dokita",
-    body: {
-      language: selectedLanguage,
-    },
-    onFinish: (message) => {
-      addMessage({
-        role: "assistant",
-        content: message.content,
-      });
-    },
+  // AI SDK 6 useChat with DefaultChatTransport
+  const { messages, sendMessage, status } = useChat({
+    transport: new DefaultChatTransport({ 
+      api: "/api/dokita",
+      body: {
+        language: selectedLanguage,
+      },
+    }),
   });
 
-  // Initialize or restore session
+  const isLoading = status === "streaming" || status === "submitted";
+
+  // Initialize session
   useEffect(() => {
     if (!currentSessionId) {
       createSession();
-    } else {
-      const session = getCurrentSession();
-      if (session) {
-        // Restore messages from session
-        const restoredMessages = session.messages.map((m) => ({
-          id: m.id,
-          role: m.role as "user" | "assistant",
-          content: m.content,
-        }));
-        setMessages(restoredMessages);
-      }
     }
-  }, [currentSessionId, createSession, getCurrentSession, setMessages]);
+  }, [currentSessionId, createSession]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -117,28 +115,31 @@ export function DokitaChat() {
     
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       const transcript = event.results[0][0].transcript;
-      handleInputChange({ target: { value: transcript } } as React.ChangeEvent<HTMLInputElement>);
+      setInput(transcript);
     };
 
     recognition.start();
   };
 
   // Handle message submission with safety check
-  const handleSendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
-    if (!input.trim()) return;
+    const trimmedInput = input.trim();
+    
+    if (!trimmedInput || isLoading) {
+      return;
+    }
 
     // Detect language
-    const detectedLang = detectLanguage(input);
+    const detectedLang = detectLanguage(trimmedInput);
     if (detectedLang) {
       setSelectedLanguage(detectedLang);
     }
 
-    // Check for emergency keywords
-    const emergencyCheck = checkForEmergency(input);
-    if (emergencyCheck.isEmergency) {
-      setEmergencyType(emergencyCheck.type || "medical");
+    // Check for emergency keywords using safety engine
+    const emergencyResult = emergencyCheck(trimmedInput);
+    if (emergencyResult.isEmergency) {
       activateEmergency();
       return;
     }
@@ -146,35 +147,26 @@ export function DokitaChat() {
     // Add user message to store
     addMessage({
       role: "user",
-      content: input,
+      content: trimmedInput,
     });
 
-    // Submit to API
-    handleSubmit(e);
+    // Send message using AI SDK 6 pattern
+    sendMessage({ text: trimmedInput });
+    setInput("");
   };
 
   const handleNewChat = () => {
     createSession();
-    setMessages([]);
     setShowHistory(false);
   };
 
   const handleSelectSession = (sessionId: string) => {
     setCurrentSession(sessionId);
-    const session = sessions.find((s) => s.id === sessionId);
-    if (session) {
-      const restoredMessages = session.messages.map((m) => ({
-        id: m.id,
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      }));
-      setMessages(restoredMessages);
-    }
     setShowHistory(false);
   };
 
   const handleSuggestedPrompt = (prompt: string) => {
-    handleInputChange({ target: { value: prompt } } as React.ChangeEvent<HTMLInputElement>);
+    setInput(prompt);
   };
 
   return (
@@ -305,32 +297,36 @@ export function DokitaChat() {
           </div>
         ) : (
           <div className="space-y-4">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={cn(
-                  "flex",
-                  message.role === "user" ? "justify-end" : "justify-start"
-                )}
-              >
+            {messages.map((message) => {
+              const messageText = getMessageText(message);
+              
+              return (
                 <div
+                  key={message.id}
                   className={cn(
-                    "max-w-[85%] rounded-2xl px-4 py-3 sm:max-w-[70%]",
-                    message.role === "user"
-                      ? "rounded-br-sm bg-primary text-primary-foreground"
-                      : "rounded-bl-sm bg-muted text-foreground"
+                    "flex",
+                    message.role === "user" ? "justify-end" : "justify-start"
                   )}
                 >
-                  {message.role === "assistant" && (
-                    <div className="mb-1 flex items-center gap-2">
-                      <Stethoscope className="h-4 w-4 text-primary" />
-                      <span className="text-xs font-medium text-primary">Dokita AI</span>
-                    </div>
-                  )}
-                  <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+                  <div
+                    className={cn(
+                      "max-w-[85%] rounded-2xl px-4 py-3 sm:max-w-[70%]",
+                      message.role === "user"
+                        ? "rounded-br-sm bg-primary text-primary-foreground"
+                        : "rounded-bl-sm bg-muted text-foreground"
+                    )}
+                  >
+                    {message.role === "assistant" && (
+                      <div className="mb-1 flex items-center gap-2">
+                        <Stethoscope className="h-4 w-4 text-primary" />
+                        <span className="text-xs font-medium text-primary">Dokita AI</span>
+                      </div>
+                    )}
+                    <p className="whitespace-pre-wrap text-sm">{messageText}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {isLoading && (
               <div className="flex justify-start">
@@ -371,7 +367,7 @@ export function DokitaChat() {
           
           <Input
             value={input}
-            onChange={handleInputChange}
+            onChange={(e) => setInput(e.target.value)}
             placeholder="Describe your symptoms..."
             className="flex-1"
             disabled={isLoading}

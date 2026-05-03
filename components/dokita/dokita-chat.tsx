@@ -56,11 +56,12 @@ export function DokitaChat() {
   
   const { activateEmergency } = useEmergencyStore();
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages } = useChat({
+  const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages, setInput } = useChat({
     api: "/api/dokita",
     body: {
       language: selectedLanguage,
     },
+    initialInput: "",
     onFinish: (message) => {
       addMessage({
         role: "assistant",
@@ -124,20 +125,27 @@ export function DokitaChat() {
   };
 
   // Handle message submission with safety check
-  const handleSendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
-    if (!input || !input.trim()) return;
+    const trimmedInput = (input || "").trim();
+    console.log("[v0] handleSendMessage called, input:", input, "trimmed:", trimmedInput);
+    
+    if (!trimmedInput) {
+      console.log("[v0] Input is empty, returning");
+      return;
+    }
 
     // Detect language
-    const detectedLang = detectLanguage(input);
+    const detectedLang = detectLanguage(trimmedInput);
     if (detectedLang) {
       setSelectedLanguage(detectedLang);
     }
 
     // Check for emergency keywords using safety engine
-    const emergencyResult = emergencyCheck(input);
+    const emergencyResult = emergencyCheck(trimmedInput);
     if (emergencyResult.isEmergency) {
+      console.log("[v0] Emergency detected, activating emergency mode");
       activateEmergency();
       return;
     }
@@ -145,10 +153,11 @@ export function DokitaChat() {
     // Add user message to store
     addMessage({
       role: "user",
-      content: input,
+      content: trimmedInput,
     });
 
-    // Submit to API
+    console.log("[v0] Submitting to API");
+    // Submit to API using the original handleSubmit
     handleSubmit(e);
   };
 
@@ -369,17 +378,22 @@ export function DokitaChat() {
           </Button>
           
           <Input
-            value={input}
+            value={input || ""}
             onChange={handleInputChange}
             placeholder="Describe your symptoms..."
             className="flex-1"
             disabled={isLoading}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                console.log("[v0] Enter key pressed");
+              }
+            }}
           />
           
           <Button
             type="submit"
             size="icon"
-            disabled={!input || !input.trim() || isLoading}
+            disabled={!(input || "").trim() || isLoading}
             className="shrink-0"
           >
             <Send className="h-5 w-5" />

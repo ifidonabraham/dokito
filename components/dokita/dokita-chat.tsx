@@ -20,7 +20,7 @@ import { Card } from "@/components/ui/card";
 import { useChatStore } from "@/stores/chat-store";
 import { useEmergencyStore } from "@/stores/emergency-store";
 import { detectLanguage } from "@/lib/language-detection";
-import { checkForEmergency } from "@/lib/safety-engine";
+import { emergencyCheck } from "@/lib/safety-engine";
 import { cn } from "@/lib/utils";
 
 const LANGUAGES = [
@@ -54,7 +54,7 @@ export function DokitaChat() {
     deleteSession,
   } = useChatStore();
   
-  const { activateEmergency, setEmergencyType } = useEmergencyStore();
+  const { activateEmergency } = useEmergencyStore();
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages } = useChat({
     api: "/api/dokita",
@@ -135,10 +135,9 @@ export function DokitaChat() {
       setSelectedLanguage(detectedLang);
     }
 
-    // Check for emergency keywords
-    const emergencyCheck = checkForEmergency(input);
-    if (emergencyCheck.isEmergency) {
-      setEmergencyType(emergencyCheck.type || "medical");
+    // Check for emergency keywords using safety engine
+    const emergencyResult = emergencyCheck(input);
+    if (emergencyResult.isEmergency) {
       activateEmergency();
       return;
     }

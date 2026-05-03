@@ -1,21 +1,25 @@
-import { streamText } from "ai";
-import { gateway } from "@ai-sdk/gateway";
+import { streamText, convertToModelMessages, UIMessage, consumeStream } from "ai";
+
+export const maxDuration = 30;
 
 export async function POST(request: Request) {
-  const { messages, language = "en" } = await request.json();
+  const { messages, language = "en" }: { messages: UIMessage[]; language?: string } = await request.json();
 
   // Build system prompt based on documents
   const systemPrompt = buildDokitaSystemPrompt(language);
 
   const result = streamText({
-    model: gateway("openai/gpt-4o-mini"),
+    model: "openai/gpt-4o-mini",
     system: systemPrompt,
-    messages,
+    messages: await convertToModelMessages(messages),
     temperature: 0.7,
-    maxTokens: 1000,
+    maxOutputTokens: 1000,
+    abortSignal: request.signal,
   });
 
-  return result.toDataStreamResponse();
+  return result.toUIMessageStreamResponse({
+    consumeSseStream: consumeStream,
+  });
 }
 
 function buildDokitaSystemPrompt(language: string): string {

@@ -65,7 +65,7 @@ export default function RootLayout({
             <DesktopSidebar />
             
             {/* Main Content */}
-            <main className="flex-1 pb-20 lg:pb-0">
+            <main className="flex-1 pb-20 lg:ml-64 lg:pb-0">
               {children}
             </main>
           </div>

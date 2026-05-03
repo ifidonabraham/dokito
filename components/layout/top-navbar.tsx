@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { Search, Menu, X, Bell, User, LogOut, Settings, FileText, Heart, Home, MessageCircle, MapPin, Pill } from 'lucide-react'
+import { Search, Menu, Bell, User, LogOut, Settings, FileText, Heart } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -15,51 +14,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuthStore } from '@/stores/auth-store'
-import { cn } from '@/lib/utils'
-
-const navItems = [
-  { href: '/', label: 'Home', icon: Home },
-  { href: '/records', label: 'Health Records', icon: FileText },
-  { href: '/ask', label: 'Ask Dokita', icon: MessageCircle },
-  { href: '/facilities', label: 'Find Hospital', icon: MapPin },
-  { href: '/drugs', label: 'Drug Information', icon: Pill },
-  { href: '/profile', label: 'Profile', icon: User },
-]
+import { useSidebarStore } from '@/stores/sidebar-store'
 
 export function TopNavbar() {
-  const pathname = usePathname()
   const { user, isAuthenticated, signOut } = useAuthStore()
+  const { isOpen, toggle } = useSidebarStore()
   const [searchQuery, setSearchQuery] = useState('')
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-
-  // Close menu when route changes
-  useEffect(() => {
-    setIsMobileMenuOpen(false)
-  }, [pathname])
-
-  // Close menu on escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsMobileMenuOpen(false)
-      }
-    }
-    
-    if (isMobileMenuOpen) {
-      document.addEventListener('keydown', handleEscape)
-      // Prevent body scroll when menu is open
-      document.body.style.overflow = 'hidden'
-    }
-    
-    return () => {
-      document.removeEventListener('keydown', handleEscape)
-      document.body.style.overflow = ''
-    }
-  }, [isMobileMenuOpen])
-
-  const closeMenu = useCallback(() => {
-    setIsMobileMenuOpen(false)
-  }, [])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,16 +41,16 @@ export function TopNavbar() {
     <>
       <header className="sticky top-0 z-50 w-full border-b border-border bg-background">
         <div className="flex h-14 items-center gap-3 px-4">
-          {/* Mobile menu toggle */}
+          {/* Mobile menu toggle - controls the sidebar */}
           <Button
             variant="ghost"
             size="icon"
             className="lg:hidden shrink-0 h-9 w-9"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={isMobileMenuOpen}
+            onClick={toggle}
+            aria-label={isOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={isOpen}
           >
-            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            <Menu className="h-5 w-5" />
           </Button>
 
           {/* Logo */}
@@ -190,74 +150,6 @@ export function TopNavbar() {
         </div>
       </header>
 
-      {/* Mobile Navigation - Full Screen Overlay */}
-      {isMobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 z-[100]">
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={closeMenu}
-            aria-hidden="true"
-          />
-          
-          {/* Menu Panel */}
-          <div 
-            className="absolute left-0 top-0 bottom-0 w-[280px] bg-background shadow-xl flex flex-col"
-            style={{ transform: 'translateX(0)' }}
-          >
-            {/* Menu Header */}
-            <div className="flex items-center justify-between h-14 px-4 border-b border-border">
-              <Link href="/" onClick={closeMenu} className="flex items-center gap-2 font-bold text-lg text-primary">
-                <Heart className="h-6 w-6 fill-primary text-primary-foreground" />
-                <span>Dokita</span>
-              </Link>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                onClick={closeMenu}
-                aria-label="Close menu"
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-            
-            {/* Navigation Links */}
-            <nav className="flex-1 overflow-y-auto py-4">
-              <div className="flex flex-col gap-1 px-3">
-                {navItems.map((item) => {
-                  const Icon = item.icon
-                  const isActive = pathname === item.href
-                  
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={closeMenu}
-                      className={cn(
-                        'flex items-center gap-3 rounded-lg px-3 py-3 text-base font-medium transition-colors',
-                        isActive
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-foreground hover:bg-secondary'
-                      )}
-                    >
-                      <Icon className="h-5 w-5" />
-                      {item.label}
-                    </Link>
-                  )
-                })}
-              </div>
-            </nav>
-            
-            {/* Menu Footer */}
-            <div className="border-t border-border p-4">
-              <p className="text-xs text-muted-foreground text-center">
-                Akili Health - Your AI Health Assistant
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }

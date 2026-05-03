@@ -380,7 +380,7 @@ export function DokitaChat() {
           <Button
             type="submit"
             size="icon"
-            disabled={!input.trim() || isLoading}
+            disabled={!input || !input.trim() || isLoading}
             className="shrink-0"
           >
             <Send className="h-5 w-5" />

@@ -118,7 +118,7 @@ export function DokitaChat() {
     
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       const transcript = event.results[0][0].transcript;
-      handleInputChange({ target: { value: transcript } } as React.ChangeEvent<HTMLInputElement>);
+      setInput(transcript);
     };
 
     recognition.start();
@@ -129,10 +129,8 @@ export function DokitaChat() {
     e.preventDefault();
     
     const trimmedInput = (input || "").trim();
-    console.log("[v0] handleSendMessage called, input:", input, "trimmed:", trimmedInput);
     
     if (!trimmedInput) {
-      console.log("[v0] Input is empty, returning");
       return;
     }
 
@@ -145,7 +143,6 @@ export function DokitaChat() {
     // Check for emergency keywords using safety engine
     const emergencyResult = emergencyCheck(trimmedInput);
     if (emergencyResult.isEmergency) {
-      console.log("[v0] Emergency detected, activating emergency mode");
       activateEmergency();
       return;
     }
@@ -156,7 +153,6 @@ export function DokitaChat() {
       content: trimmedInput,
     });
 
-    console.log("[v0] Submitting to API");
     // Submit to API using the original handleSubmit
     handleSubmit(e);
   };
@@ -182,7 +178,7 @@ export function DokitaChat() {
   };
 
   const handleSuggestedPrompt = (prompt: string) => {
-    handleInputChange({ target: { value: prompt } } as React.ChangeEvent<HTMLInputElement>);
+    setInput(prompt);
   };
 
   return (
@@ -383,11 +379,6 @@ export function DokitaChat() {
             placeholder="Describe your symptoms..."
             className="flex-1"
             disabled={isLoading}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                console.log("[v0] Enter key pressed");
-              }
-            }}
           />
           
           <Button

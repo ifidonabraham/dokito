@@ -1,5 +1,5 @@
 import { streamText, convertToModelMessages, UIMessage } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 
 export const maxDuration = 30;
 
@@ -10,13 +10,13 @@ export async function POST(request: Request) {
     // Build system prompt based on documents
     const systemPrompt = buildDokitaSystemPrompt(language);
 
-    // Use OpenAI directly if OPENAI_API_KEY is set, otherwise use AI Gateway
-    const model = process.env.OPENAI_API_KEY 
-      ? openai("gpt-4o-mini")
-      : "openai/gpt-4o-mini";
+    // Initialize OpenRouter with API key
+    const openrouter = createOpenRouter({
+      apiKey: process.env.OPENROUTER_API_KEY,
+    });
 
     const result = streamText({
-      model,
+      model: openrouter("openai/gpt-4o-mini"),
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
       temperature: 0.7,
@@ -29,9 +29,7 @@ export async function POST(request: Request) {
     console.error("Dokita API Error:", error);
     
     // Return a friendly error message
-    const errorMessage = error instanceof Error && error.message.includes("credit card")
-      ? "The AI service requires setup. Please add your OPENAI_API_KEY in Settings > Vars, or add a credit card to your Vercel account."
-      : "Sorry, I'm having trouble connecting right now. Please try again in a moment.";
+    const errorMessage = "Sorry, I'm having trouble connecting right now. Please try again in a moment.";
     
     return new Response(
       JSON.stringify({ error: errorMessage }),

@@ -220,7 +220,7 @@ export function HomeClient({ user }: HomeClientProps) {
               </div>
 
               {/* Quick Actions */}
-              <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-3 pb-6">
                 {QUICK_ACTIONS.map((action) => (
                   <Link key={action.href} href={action.href}>
                     <Card className="h-full hover:shadow-md transition-shadow cursor-pointer">
@@ -359,7 +359,7 @@ export function HomeClient({ user }: HomeClientProps) {
               )}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground text-center mt-2">
+          <p className="text-xs text-muted-foreground text-center mt-2 pr-28 sm:pr-0">
             Dokita AI provides health information only. Always consult a healthcare professional for medical advice.
           </p>
         </form>

@@ -52,7 +52,7 @@ export function EmergencyButton({ className, variant = 'floating' }: EmergencyBu
         'active:scale-95',
         'emergency-pulse',
         // Mobile: bottom right above bottom nav
-        'bottom-24 right-4 md:bottom-6 md:right-6',
+        'bottom-24 right-4 md:bottom-32 md:right-6',
         className
       )}
       aria-label="Emergency - Get immediate help"

@@ -131,6 +131,16 @@ export interface ChatMessage {
   metadata?: Record<string, unknown>
 }
 
+export interface ChatSession {
+  id: string
+  title: string
+  messages: ChatMessage[]
+  createdAt: string
+  updatedAt: string
+}
+
+export type Language = SupportedLanguage
+
 // Emergency System
 export interface EmergencyState {
   isActive: boolean

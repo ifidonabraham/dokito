@@ -38,54 +38,14 @@ interface InteractionCheck {
   description: string;
 }
 
-// Mock drug database
-const MOCK_DRUGS: Record<string, DrugInfo> = {
-  paracetamol: {
-    name: "Paracetamol",
-    genericName: "Acetaminophen",
-    nafdacNumber: "A4-1234567",
-    isVerified: true,
-    manufacturer: "Emzor Pharmaceuticals",
-    dosageForm: "Tablet",
-    strength: "500mg",
-    indications: ["Pain relief", "Fever reduction", "Headache", "Body aches"],
-    sideEffects: ["Nausea", "Allergic reactions (rare)", "Liver damage (overdose)"],
-    warnings: ["Do not exceed 4g daily", "Avoid alcohol", "Consult doctor if symptoms persist"],
-    interactions: ["Warfarin", "Alcohol", "Carbamazepine"],
-  },
-  ibuprofen: {
-    name: "Ibuprofen",
-    genericName: "Ibuprofen",
-    nafdacNumber: "A4-2345678",
-    isVerified: true,
-    manufacturer: "Swiss Pharma Nigeria",
-    dosageForm: "Tablet",
-    strength: "400mg",
-    indications: ["Pain relief", "Inflammation", "Fever", "Arthritis"],
-    sideEffects: ["Stomach upset", "Nausea", "Dizziness", "Headache"],
-    warnings: ["Take with food", "Avoid if pregnant", "Not for asthma patients"],
-    interactions: ["Aspirin", "Warfarin", "Lithium", "Methotrexate"],
-  },
-  amoxicillin: {
-    name: "Amoxicillin",
-    genericName: "Amoxicillin",
-    nafdacNumber: "A4-3456789",
-    isVerified: true,
-    manufacturer: "Fidson Healthcare",
-    dosageForm: "Capsule",
-    strength: "500mg",
-    indications: ["Bacterial infections", "Ear infections", "Throat infections", "UTIs"],
-    sideEffects: ["Diarrhea", "Rash", "Nausea", "Allergic reactions"],
-    warnings: ["Complete full course", "Report allergies", "May reduce contraceptive effectiveness"],
-    interactions: ["Probenecid", "Methotrexate", "Warfarin"],
-  },
-};
-
 export default function DrugsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResult, setSearchResult] = useState<DrugInfo | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [nafdacNumber, setNafdacNumber] = useState("");
+  const [verifyResult, setVerifyResult] = useState<{ verified: boolean; drug?: DrugInfo; message?: string } | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const [drug1, setDrug1] = useState("");
   const [drug2, setDrug2] = useState("");
@@ -99,12 +59,11 @@ export default function DrugsPage() {
     setNotFound(false);
     setSearchResult(null);
     
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    
-    const result = MOCK_DRUGS[searchQuery.toLowerCase()];
-    
-    if (result) {
+    const response = await fetch(`/api/drugs?query=${encodeURIComponent(searchQuery.trim())}`);
+    const data = await response.json();
+    const result = data.drugs?.[0] as DrugInfo | undefined;
+
+    if (response.ok && result) {
       setSearchResult(result);
     } else {
       setNotFound(true);
@@ -119,38 +78,41 @@ export default function DrugsPage() {
     setIsCheckingInteraction(true);
     setInteractionResult(null);
     
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    // Mock interaction check
-    const d1 = MOCK_DRUGS[drug1.toLowerCase()];
-    const d2 = MOCK_DRUGS[drug2.toLowerCase()];
-    
-    if (d1 && d2) {
-      const hasInteraction = d1.interactions.some(
-        (i) => i.toLowerCase() === d2.name.toLowerCase()
-      ) || d2.interactions.some(
-        (i) => i.toLowerCase() === d1.name.toLowerCase()
-      );
-      
-      setInteractionResult({
-        drug1: d1.name,
-        drug2: d2.name,
-        severity: hasInteraction ? "moderate" : "none",
-        description: hasInteraction
-          ? `There may be an interaction between ${d1.name} and ${d2.name}. Consult your healthcare provider before taking these medications together.`
-          : `No known interaction found between ${d1.name} and ${d2.name}. However, always consult your doctor or pharmacist.`,
-      });
+    const response = await fetch("/api/drugs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "check_interaction",
+        drug1: drug1.trim(),
+        drug2: drug2.trim(),
+      }),
+    });
+    const data = await response.json();
+
+    if (response.ok) {
+      setInteractionResult(data);
     } else {
       setInteractionResult({
         drug1: drug1,
         drug2: drug2,
         severity: "none",
-        description: "One or both drugs not found in our database. Please verify with a healthcare professional.",
+        description: data.error || "Interaction check failed. Please verify with a healthcare professional.",
       });
     }
     
     setIsCheckingInteraction(false);
+  };
+
+  const handleNafdacVerify = async () => {
+    if (!nafdacNumber.trim()) return;
+
+    setIsVerifying(true);
+    setVerifyResult(null);
+
+    const response = await fetch(`/api/drugs?nafdac=${encodeURIComponent(nafdacNumber.trim())}`);
+    const data = await response.json();
+    setVerifyResult(data);
+    setIsVerifying(false);
   };
 
   return (
@@ -310,15 +272,48 @@ export default function DrugsPage() {
                 registered with the National Agency for Food and Drug Administration and Control.
               </p>
               <div className="flex gap-2">
-                <Input placeholder="Enter NAFDAC number (e.g., A4-1234567)" />
-                <Button>Verify</Button>
+                <Input
+                  placeholder="Enter NAFDAC number (e.g., A4-1234567)"
+                  value={nafdacNumber}
+                  onChange={(e) => setNafdacNumber(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleNafdacVerify()}
+                />
+                <Button onClick={handleNafdacVerify} disabled={isVerifying || !nafdacNumber.trim()}>
+                  {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify"}
+                </Button>
               </div>
-              <div className="rounded-lg bg-muted p-4 text-center">
-                <Info className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  Enter a NAFDAC number above to check verification status
-                </p>
-              </div>
+              {verifyResult ? (
+                <div className={`rounded-lg p-4 ${verifyResult.verified ? "bg-green-100 dark:bg-green-900/20" : "bg-destructive/10"}`}>
+                  <div className="flex items-start gap-3">
+                    {verifyResult.verified ? (
+                      <CheckCircle className="h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />
+                    ) : (
+                      <XCircle className="h-5 w-5 shrink-0 text-destructive" />
+                    )}
+                    <div>
+                      <p className="font-medium text-foreground">
+                        {verifyResult.verified ? "NAFDAC registration found" : "NAFDAC number not found"}
+                      </p>
+                      {verifyResult.drug ? (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {verifyResult.drug.name} by {verifyResult.drug.manufacturer}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {verifyResult.message || "Please confirm the number and consult a pharmacist if unsure."}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg bg-muted p-4 text-center">
+                  <Info className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    Enter a NAFDAC number above to check verification status
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

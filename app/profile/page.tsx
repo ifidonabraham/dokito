@@ -1,27 +1,28 @@
 "use client";
 
-import { useState } from "react";
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  Droplet, 
-  Languages, 
-  Bell, 
-  Shield,
-  LogOut,
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
+import {
+  Bell,
   ChevronRight,
-  Settings,
+  Droplet,
   Heart,
-  Users
+  Languages,
+  LogOut,
+  Mail,
+  Phone,
+  Settings,
+  Shield,
+  User,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useAuthStore } from "@/stores/auth-store";
-import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
@@ -33,15 +34,25 @@ const LANGUAGES = [
   { code: "ha", label: "Hausa" },
 ];
 
+interface ProfileRow {
+  full_name: string | null;
+  phone: string | null;
+  blood_type: string | null;
+  preferred_language: string | null;
+  avatar_url: string | null;
+}
+
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, logout, updateUser } = useAuthStore();
+  const supabase = createClient();
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    name: user?.name || "",
-    phone: user?.phone || "",
-    bloodType: user?.bloodType || "",
-    language: user?.language || "en",
+    name: "",
+    phone: "",
+    bloodType: "",
+    language: "en",
   });
 
   const [notifications, setNotifications] = useState({
@@ -51,22 +62,74 @@ export default function ProfilePage() {
     emergencyAlerts: true,
   });
 
-  const handleSave = () => {
-    if (user) {
-      updateUser({
-        name: formData.name,
-        phone: formData.phone,
-        bloodType: formData.bloodType,
-        language: formData.language as "en" | "pcm" | "yo" | "ig" | "ha",
-      });
+  useEffect(() => {
+    async function loadProfile() {
+      if (!supabase) {
+        setIsLoading(false);
+        return;
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setUser(user);
+
+      if (user) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("full_name, phone, blood_type, preferred_language, avatar_url")
+          .eq("id", user.id)
+          .maybeSingle<ProfileRow>();
+
+        setFormData({
+          name: data?.full_name || user.user_metadata?.full_name || user.email?.split("@")[0] || "",
+          phone: data?.phone || "",
+          bloodType: data?.blood_type || "",
+          language: data?.preferred_language || "en",
+        });
+      }
+
+      setIsLoading(false);
     }
+
+    loadProfile();
+  }, [supabase]);
+
+  const handleSave = async () => {
+    if (!supabase || !user) return;
+
+    await supabase.from("profiles").upsert({
+      id: user.id,
+      email: user.email,
+      full_name: formData.name || null,
+      phone: formData.phone || null,
+      blood_type: formData.bloodType || null,
+      preferred_language: formData.language,
+      updated_at: new Date().toISOString(),
+    });
+
+    await supabase.auth.updateUser({
+      data: { full_name: formData.name || null },
+    });
+
     setIsEditing(false);
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     router.push("/");
+    router.refresh();
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[calc(100vh-7rem)] items-center justify-center">
+        <p className="text-sm text-muted-foreground">Loading profile...</p>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -85,6 +148,8 @@ export default function ProfilePage() {
     );
   }
 
+  const displayName = formData.name || user.email?.split("@")[0] || "User";
+
   return (
     <div className="p-4 lg:p-6">
       <div className="mb-6">
@@ -93,28 +158,23 @@ export default function ProfilePage() {
       </div>
 
       <div className="space-y-6">
-        {/* Profile Header */}
         <Card>
           <CardContent className="py-6">
             <div className="flex items-center gap-4">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-2xl font-bold text-primary-foreground">
-                {user.name.charAt(0).toUpperCase()}
+                {displayName.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1">
-                <h2 className="text-xl font-semibold text-foreground">{user.name}</h2>
+                <h2 className="text-xl font-semibold text-foreground">{displayName}</h2>
                 <p className="text-sm text-muted-foreground">{user.email}</p>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => setIsEditing(!isEditing)}
-              >
+              <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
                 {isEditing ? "Cancel" : "Edit"}
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Personal Information */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -125,7 +185,7 @@ export default function ProfilePage() {
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <Label htmlFor="name" className="text-foreground">Full Name</Label>
+                <Label htmlFor="name">Full Name</Label>
                 <Input
                   id="name"
                   value={formData.name}
@@ -135,27 +195,28 @@ export default function ProfilePage() {
                 />
               </div>
               <div>
-                <Label htmlFor="email" className="text-foreground">Email</Label>
-                <Input
-                  id="email"
-                  value={user.email}
-                  disabled
-                  className="mt-1 bg-muted"
-                />
+                <Label htmlFor="email">Email</Label>
+                <div className="relative mt-1">
+                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input id="email" value={user.email || ""} disabled className="bg-muted pl-9" />
+                </div>
               </div>
               <div>
-                <Label htmlFor="phone" className="text-foreground">Phone Number</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+234 XXX XXX XXXX"
-                  disabled={!isEditing}
-                  className="mt-1"
-                />
+                <Label htmlFor="phone">Phone Number</Label>
+                <div className="relative mt-1">
+                  <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="+234 XXX XXX XXXX"
+                    disabled={!isEditing}
+                    className="pl-9"
+                  />
+                </div>
               </div>
               <div>
-                <Label htmlFor="bloodType" className="text-foreground">Blood Type</Label>
+                <Label htmlFor="bloodType">Blood Type</Label>
                 <select
                   id="bloodType"
                   value={formData.bloodType}
@@ -165,25 +226,32 @@ export default function ProfilePage() {
                 >
                   <option value="">Select blood type</option>
                   {BLOOD_TYPES.map((type) => (
-                    <option key={type} value={type}>{type}</option>
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
                   ))}
                 </select>
               </div>
             </div>
 
             <div>
-              <Label htmlFor="language" className="text-foreground">Preferred Language</Label>
-              <select
-                id="language"
-                value={formData.language}
-                onChange={(e) => setFormData({ ...formData, language: e.target.value })}
-                disabled={!isEditing}
-                className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-foreground disabled:bg-muted"
-              >
-                {LANGUAGES.map((lang) => (
-                  <option key={lang.code} value={lang.code}>{lang.label}</option>
-                ))}
-              </select>
+              <Label htmlFor="language">Preferred Language</Label>
+              <div className="relative mt-1">
+                <Languages className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <select
+                  id="language"
+                  value={formData.language}
+                  onChange={(e) => setFormData({ ...formData, language: e.target.value })}
+                  disabled={!isEditing}
+                  className="w-full rounded-md border border-border bg-card py-2 pl-9 pr-3 text-foreground disabled:bg-muted"
+                >
+                  {LANGUAGES.map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {isEditing && (
@@ -194,7 +262,6 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* Health Information */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -203,14 +270,15 @@ export default function ProfilePage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <button className="flex w-full items-center justify-between rounded-lg p-3 text-left transition-colors hover:bg-accent">
+            <button
+              className="flex w-full items-center justify-between rounded-lg p-3 text-left transition-colors hover:bg-accent"
+              onClick={() => router.push("/records")}
+            >
               <div className="flex items-center gap-3">
                 <Droplet className="h-5 w-5 text-destructive" />
                 <div>
                   <p className="font-medium text-foreground">Allergies</p>
-                  <p className="text-sm text-muted-foreground">
-                    {user.allergies.length > 0 ? `${user.allergies.length} recorded` : "None recorded"}
-                  </p>
+                  <p className="text-sm text-muted-foreground">Manage allergies in Health Records</p>
                 </div>
               </div>
               <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -221,11 +289,7 @@ export default function ProfilePage() {
                 <Users className="h-5 w-5 text-primary" />
                 <div>
                   <p className="font-medium text-foreground">Emergency Contacts</p>
-                  <p className="text-sm text-muted-foreground">
-                    {user.emergencyContacts.length > 0 
-                      ? `${user.emergencyContacts.length} contacts` 
-                      : "Add emergency contacts"}
-                  </p>
+                  <p className="text-sm text-muted-foreground">Coming soon</p>
                 </div>
               </div>
               <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -233,7 +297,6 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* Notifications */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -242,61 +305,28 @@ export default function ProfilePage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-foreground">Medication Reminders</p>
-                <p className="text-sm text-muted-foreground">Get notified when it&apos;s time to take your medication</p>
+            {[
+              ["medicationReminders", "Medication Reminders", "Get notified when it is time to take your medication"],
+              ["appointmentReminders", "Appointment Reminders", "Reminders for upcoming appointments"],
+              ["healthTips", "Health Tips", "Weekly health tips and insights"],
+              ["emergencyAlerts", "Emergency Alerts", "Critical health alerts and updates"],
+            ].map(([key, label, description]) => (
+              <div key={key} className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-medium text-foreground">{label}</p>
+                  <p className="text-sm text-muted-foreground">{description}</p>
+                </div>
+                <Switch
+                  checked={notifications[key as keyof typeof notifications]}
+                  onCheckedChange={(checked) =>
+                    setNotifications({ ...notifications, [key]: checked })
+                  }
+                />
               </div>
-              <Switch
-                checked={notifications.medicationReminders}
-                onCheckedChange={(checked) => 
-                  setNotifications({ ...notifications, medicationReminders: checked })
-                }
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-foreground">Appointment Reminders</p>
-                <p className="text-sm text-muted-foreground">Reminders for upcoming appointments</p>
-              </div>
-              <Switch
-                checked={notifications.appointmentReminders}
-                onCheckedChange={(checked) => 
-                  setNotifications({ ...notifications, appointmentReminders: checked })
-                }
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-foreground">Health Tips</p>
-                <p className="text-sm text-muted-foreground">Weekly health tips and insights</p>
-              </div>
-              <Switch
-                checked={notifications.healthTips}
-                onCheckedChange={(checked) => 
-                  setNotifications({ ...notifications, healthTips: checked })
-                }
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-foreground">Emergency Alerts</p>
-                <p className="text-sm text-muted-foreground">Critical health alerts and updates</p>
-              </div>
-              <Switch
-                checked={notifications.emergencyAlerts}
-                onCheckedChange={(checked) => 
-                  setNotifications({ ...notifications, emergencyAlerts: checked })
-                }
-              />
-            </div>
+            ))}
           </CardContent>
         </Card>
 
-        {/* Settings & Actions */}
         <Card>
           <CardContent className="py-4">
             <button className="flex w-full items-center justify-between rounded-lg p-3 text-left transition-colors hover:bg-accent">
@@ -304,7 +334,7 @@ export default function ProfilePage() {
                 <Shield className="h-5 w-5 text-primary" />
                 <div>
                   <p className="font-medium text-foreground">Privacy & Security</p>
-                  <p className="text-sm text-muted-foreground">Manage your data and privacy settings</p>
+                  <p className="text-sm text-muted-foreground">Your profile is protected by Supabase auth and row-level security</p>
                 </div>
               </div>
               <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -315,7 +345,7 @@ export default function ProfilePage() {
                 <Settings className="h-5 w-5 text-muted-foreground" />
                 <div>
                   <p className="font-medium text-foreground">App Settings</p>
-                  <p className="text-sm text-muted-foreground">Theme, language, and other preferences</p>
+                  <p className="text-sm text-muted-foreground">Language and notification preferences</p>
                 </div>
               </div>
               <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -323,7 +353,6 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* Logout */}
         <Button
           variant="outline"
           className="w-full gap-2 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"

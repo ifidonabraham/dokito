@@ -11,10 +11,10 @@ export async function POST(request: Request) {
     system: systemPrompt,
     messages: [{ role: "user", content: transcript }],
     temperature: 0.3, // Lower temperature for more focused emergency responses
-    maxTokens: 500,
+    maxOutputTokens: 500,
   });
 
-  return result.toDataStreamResponse();
+  return result.toTextStreamResponse();
 }
 
 function buildEmergencySystemPrompt(emergencyType: string, language: string): string {

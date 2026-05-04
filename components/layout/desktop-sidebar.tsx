@@ -39,15 +39,15 @@ const mainNavItems: NavItem[] = [
 ]
 
 const healthNavItems: NavItem[] = [
-  { href: '/vitals', label: 'Vitals Tracker', icon: Activity },
-  { href: '/medications', label: 'Medications', icon: Pill },
-  { href: '/programs', label: 'Health Programs', icon: Heart },
+  { href: '/records', label: 'Vitals Tracker', icon: Activity },
+  { href: '/records', label: 'Medications', icon: Pill },
+  { href: '/appointments', label: 'Health Programs', icon: Heart },
 ]
 
 const secondaryNavItems: NavItem[] = [
-  { href: '/emergency-history', label: 'Emergency History', icon: Clock },
-  { href: '/settings', label: 'Settings', icon: Settings },
-  { href: '/help', label: 'Help & Support', icon: HelpCircle },
+  { href: '/facilities', label: 'Emergency History', icon: Clock },
+  { href: '/profile', label: 'Settings', icon: Settings },
+  { href: '/ask', label: 'Help & Support', icon: HelpCircle },
 ]
 
 export function DesktopSidebar() {

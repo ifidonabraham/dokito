@@ -40,12 +40,12 @@ import { Textarea } from "@/components/ui/textarea";
 interface Vital {
   id: string;
   user_id: string;
-  systolic_bp: number | null;
-  diastolic_bp: number | null;
+  blood_pressure_systolic: number | null;
+  blood_pressure_diastolic: number | null;
   heart_rate: number | null;
   blood_sugar: number | null;
   temperature: number | null;
-  weight: number | null;
+  weight_kg: number | null;
   oxygen_saturation: number | null;
   notes: string | null;
   recorded_at: string;
@@ -57,7 +57,7 @@ interface Medication {
   name: string;
   dosage: string;
   frequency: string;
-  times: string[];
+  reminder_times: string[] | null;
   instructions: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -68,7 +68,6 @@ interface Allergy {
   id: string;
   user_id: string;
   allergen: string;
-  allergy_type: string;
   severity: string;
   reaction: string | null;
 }
@@ -76,8 +75,8 @@ interface Allergy {
 interface Condition {
   id: string;
   user_id: string;
-  condition_name: string;
-  diagnosis_date: string | null;
+  name: string;
+  diagnosed_date: string | null;
   status: string;
   notes: string | null;
 }
@@ -148,12 +147,12 @@ export function RecordsClient({
       .from("vitals")
       .insert({
         user_id: user.id,
-        systolic_bp: vitalForm.systolic_bp ? parseInt(vitalForm.systolic_bp) : null,
-        diastolic_bp: vitalForm.diastolic_bp ? parseInt(vitalForm.diastolic_bp) : null,
+        blood_pressure_systolic: vitalForm.systolic_bp ? parseInt(vitalForm.systolic_bp) : null,
+        blood_pressure_diastolic: vitalForm.diastolic_bp ? parseInt(vitalForm.diastolic_bp) : null,
         heart_rate: vitalForm.heart_rate ? parseInt(vitalForm.heart_rate) : null,
         blood_sugar: vitalForm.blood_sugar ? parseFloat(vitalForm.blood_sugar) : null,
         temperature: vitalForm.temperature ? parseFloat(vitalForm.temperature) : null,
-        weight: vitalForm.weight ? parseFloat(vitalForm.weight) : null,
+        weight_kg: vitalForm.weight ? parseFloat(vitalForm.weight) : null,
         oxygen_saturation: vitalForm.oxygen_saturation ? parseInt(vitalForm.oxygen_saturation) : null,
         notes: vitalForm.notes || null,
         recorded_at: new Date().toISOString(),
@@ -192,7 +191,8 @@ export function RecordsClient({
         name: medForm.name,
         dosage: medForm.dosage,
         frequency: medForm.frequency,
-        times: [],
+        reminder_times: [],
+        start_date: new Date().toISOString().slice(0, 10),
         instructions: medForm.instructions || null,
         is_active: true,
       })
@@ -219,7 +219,6 @@ export function RecordsClient({
       .insert({
         user_id: user.id,
         allergen: allergyForm.allergen,
-        allergy_type: allergyForm.allergy_type,
         severity: allergyForm.severity,
         reaction: allergyForm.reaction || null,
       })
@@ -329,13 +328,13 @@ export function RecordsClient({
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    {vital.systolic_bp && vital.diastolic_bp && (
+                    {vital.blood_pressure_systolic && vital.blood_pressure_diastolic && (
                       <div className="flex items-center justify-between text-sm">
                         <span className="flex items-center gap-2 text-muted-foreground">
                           <Heart className="h-4 w-4 text-destructive" />
                           Blood Pressure
                         </span>
-                        <span className="font-medium">{vital.systolic_bp}/{vital.diastolic_bp} mmHg</span>
+                        <span className="font-medium">{vital.blood_pressure_systolic}/{vital.blood_pressure_diastolic} mmHg</span>
                       </div>
                     )}
                     {vital.heart_rate && (
@@ -365,13 +364,13 @@ export function RecordsClient({
                         <span className="font-medium">{vital.temperature}°C</span>
                       </div>
                     )}
-                    {vital.weight && (
+                    {vital.weight_kg && (
                       <div className="flex items-center justify-between text-sm">
                         <span className="flex items-center gap-2 text-muted-foreground">
                           <Scale className="h-4 w-4 text-blue-500" />
                           Weight
                         </span>
-                        <span className="font-medium">{vital.weight} kg</span>
+                        <span className="font-medium">{vital.weight_kg} kg</span>
                       </div>
                     )}
                   </CardContent>
@@ -496,7 +495,7 @@ export function RecordsClient({
                       </div>
                       <div>
                         <h3 className="font-semibold">{allergy.allergen}</h3>
-                        <p className="text-sm text-muted-foreground capitalize">{allergy.allergy_type}</p>
+                        <p className="text-sm text-muted-foreground">Allergy</p>
                         {allergy.reaction && (
                           <p className="text-xs text-muted-foreground">{allergy.reaction}</p>
                         )}

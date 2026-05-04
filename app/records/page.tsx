@@ -19,7 +19,7 @@ export default async function RecordsPage() {
     supabase.from("vitals").select("*").eq("user_id", user.id).order("recorded_at", { ascending: false }).limit(20),
     supabase.from("medications").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
     supabase.from("allergies").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-    supabase.from("health_conditions").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+    supabase.from("conditions").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
   ]);
 
   return (

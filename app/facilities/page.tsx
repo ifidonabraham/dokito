@@ -58,46 +58,75 @@ export default function FacilitiesPage() {
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [placesService, setPlacesService] = useState<google.maps.places.PlacesService | null>(null);
   const [is24Hours, setIs24Hours] = useState(false);
+  const [mapsError, setMapsError] = useState<string | null>(null);
 
   // Load Google Maps script
   useEffect(() => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    const defaultLoc = { lat: 6.5244, lng: 3.3792 };
+
+    const resolveLocation = (onLocation: (location: { lat: number; lng: number }) => void) => {
+      if (!navigator.geolocation) {
+        onLocation(defaultLoc);
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          onLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        () => onLocation(defaultLoc)
+      );
+    };
+
+    if (!apiKey) {
+      setMapsError("Google Maps API key is not configured");
+      resolveLocation((location) => {
+        setUserLocation(location);
+        searchFallbackFacilities(location, facilityType);
+      });
+      return;
+    }
+
+    if (window.google?.maps?.places) {
+      resolveLocation((location) => {
+        setUserLocation(location);
+        initializeMap(location);
+      });
+      return;
+    }
+
+    const existingScript = document.querySelector<HTMLScriptElement>(
+      'script[src*="maps.googleapis.com/maps/api/js"]'
+    );
+
     const script = document.createElement("script");
     script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`;
     script.async = true;
     script.defer = true;
     script.onload = () => {
-      // Get user location
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const loc = {
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-            };
-            setUserLocation(loc);
-            initializeMap(loc);
-          },
-          () => {
-            // Default to Lagos, Nigeria
-            const defaultLoc = { lat: 6.5244, lng: 3.3792 };
-            setUserLocation(defaultLoc);
-            initializeMap(defaultLoc);
-          }
-        );
-      } else {
-        const defaultLoc = { lat: 6.5244, lng: 3.3792 };
-        setUserLocation(defaultLoc);
-        initializeMap(defaultLoc);
-      }
+      resolveLocation((location) => {
+        setUserLocation(location);
+        initializeMap(location);
+      });
     };
-    document.head.appendChild(script);
+    script.onerror = () => {
+      setMapsError("Google Maps failed to load");
+      resolveLocation((location) => {
+        setUserLocation(location);
+        searchFallbackFacilities(location, facilityType);
+      });
+    };
 
-    return () => {
-      const existingScript = document.querySelector(`script[src*="maps.googleapis.com"]`);
-      if (existingScript) {
-        existingScript.remove();
-      }
-    };
+    if (existingScript) {
+      existingScript.addEventListener("load", script.onload);
+      existingScript.addEventListener("error", script.onerror);
+    } else {
+      document.head.appendChild(script);
+    }
   }, []);
 
   const initializeMap = (location: { lat: number; lng: number }) => {
@@ -115,9 +144,71 @@ export default function FacilitiesPage() {
     setPlacesService(service);
   };
 
+  const getPlaceOpenStatus = (place: google.maps.places.PlaceResult): boolean | undefined => {
+    const openingHours = place.opening_hours as
+      | { isOpen?: unknown; open_now?: boolean }
+      | undefined;
+
+    if (!openingHours) return undefined;
+    if (typeof openingHours.isOpen === "function") {
+      try {
+        return openingHours.isOpen();
+      } catch {
+        return openingHours.open_now;
+      }
+    }
+    return openingHours.open_now;
+  };
+
+  const searchFallbackFacilities = useCallback(async (
+    location: { lat: number; lng: number },
+    type: FacilityType
+  ) => {
+    setIsLoading(true);
+    const params = new URLSearchParams({
+      lat: String(location.lat),
+      lng: String(location.lng),
+      type,
+    });
+
+    const response = await fetch(`/api/facilities?${params.toString()}`);
+    const data = await response.json();
+    const fallbackFacilities: Facility[] = (data.facilities || []).map((facility: {
+      id: string;
+      name: string;
+      type: "hospital" | "pharmacy" | "clinic";
+      address: string;
+      phone?: string;
+      location: { lat: number; lng: number };
+      rating?: number;
+      is24Hours?: boolean;
+      distance?: string;
+      estimatedTime?: string;
+    }) => ({
+      id: facility.id,
+      name: facility.name,
+      type: facility.type,
+      address: facility.address,
+      phone: facility.phone,
+      location: facility.location,
+      rating: facility.rating,
+      isOpen: facility.is24Hours,
+      distance: facility.distance,
+      estimatedTime: facility.estimatedTime,
+      placeId: facility.id,
+    }));
+
+    setFacilities(fallbackFacilities);
+    setIsLoading(false);
+  }, []);
+
   // Search for facilities
   const searchFacilities = useCallback((type: FacilityType) => {
-    if (!placesService || !userLocation) return;
+    if (!userLocation) return;
+    if (!placesService || mapsError) {
+      searchFallbackFacilities(userLocation, type);
+      return;
+    }
 
     setIsLoading(true);
     const typeConfig = FACILITY_TYPES.find(t => t.type === type) || FACILITY_TYPES[0];
@@ -161,7 +252,7 @@ export default function FacilitiesPage() {
             },
             rating: place.rating,
             userRatingsTotal: place.user_ratings_total,
-            isOpen: place.opening_hours?.isOpen?.(),
+            isOpen: getPlaceOpenStatus(place),
             distance: `${distance.toFixed(1)} km`,
             estimatedTime: `${Math.ceil(distance * 3)} mins`,
             placeId: place.place_id || "",
@@ -181,7 +272,7 @@ export default function FacilitiesPage() {
       }
       setIsLoading(false);
     });
-  }, [placesService, userLocation]);
+  }, [placesService, userLocation, mapsError, searchFallbackFacilities]);
 
   // Calculate distance between two coordinates
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -343,6 +434,12 @@ export default function FacilitiesPage() {
           "flex-1 overflow-y-auto p-4",
           showMap && "hidden lg:block lg:w-1/2"
         )}>
+          {mapsError && !isLoading && (
+            <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+              {mapsError}. Showing saved facility results instead.
+            </div>
+          )}
+
           {isLoading ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <Loader2 className="mb-4 h-12 w-12 animate-spin text-primary" />

@@ -2,35 +2,39 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useAuthStore } from "@/stores/auth-store";
-import { Spinner } from "@/components/ui/spinner";
+import { createClient } from "@/lib/supabase/client";
+import { Loader2 } from "lucide-react";
 
 export function GoogleAuthButton() {
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuthStore();
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-      // Simulate Google OAuth flow
-      // In production, this would redirect to Google OAuth
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const supabase = createClient();
+      if (!supabase) {
+        alert("Google Sign-In is not yet configured. Please set up Supabase environment variables.");
+        return;
+      }
       
-      // Mock user data - in production, this comes from Google
-      const mockUser = {
-        id: "user_" + Math.random().toString(36).substr(2, 9),
-        email: "user@example.com",
-        name: "Demo User",
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=demo",
-        phone: "+234 800 000 0000",
-        bloodType: "O+",
-        allergies: [],
-        medications: [],
-        emergencyContacts: [],
-        language: "en" as const,
-      };
-      
-      login(mockUser);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
+        },
+      });
+
+      if (error) {
+        console.error("Auth error:", error.message);
+        // If OAuth is not configured, show helpful message
+        if (error.message.includes("provider")) {
+          alert("Google Sign-In is not yet configured. Please set up Google OAuth in your Supabase dashboard.");
+        }
+      }
     } catch (error) {
       console.error("Auth error:", error);
     } finally {
@@ -47,7 +51,7 @@ export function GoogleAuthButton() {
       disabled={isLoading}
     >
       {isLoading ? (
-        <Spinner className="h-5 w-5" />
+        <Loader2 className="h-5 w-5 animate-spin" />
       ) : (
         <svg className="h-5 w-5" viewBox="0 0 24 24">
           <path

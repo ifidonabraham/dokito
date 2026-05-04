@@ -65,20 +65,20 @@ export default function RootLayout({
             <DesktopSidebar />
             
             {/* Main Content */}
-            <main className="flex-1 pb-20 lg:pb-0">
+            <main className="flex-1 pb-20 lg:ml-64 lg:pb-0">
               {children}
             </main>
           </div>
           
           {/* Mobile Bottom Navigation */}
           <MobileBottomNav />
-          
-          {/* Emergency Button (always visible) */}
-          <EmergencyButton />
-          
-          {/* Emergency Modal */}
-          <EmergencyModal />
         </div>
+        
+        {/* Emergency Button (always visible, outside main container for proper z-index) */}
+        <EmergencyButton />
+        
+        {/* Emergency Modal */}
+        <EmergencyModal />
         
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

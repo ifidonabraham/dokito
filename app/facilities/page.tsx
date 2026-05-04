@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { 
   MapPin, 
   Search, 
@@ -13,156 +13,242 @@ import {
   Pill,
   Stethoscope,
   AlertTriangle,
-  X
+  X,
+  Loader2,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { useFacilitiesStore } from "@/stores/facilities-store";
-import { FacilityMap } from "@/components/facilities/facility-map";
-import type { FacilityType, HealthFacility } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const FACILITY_TYPES: { type: FacilityType | "all"; label: string; icon: typeof MapPin }[] = [
-  { type: "all", label: "All", icon: MapPin },
-  { type: "hospital", label: "Hospitals", icon: Building2 },
-  { type: "pharmacy", label: "Pharmacies", icon: Pill },
-  { type: "clinic", label: "Clinics", icon: Stethoscope },
-];
+interface Facility {
+  id: string;
+  name: string;
+  type: "hospital" | "pharmacy" | "clinic";
+  address: string;
+  phone?: string;
+  location: { lat: number; lng: number };
+  rating?: number;
+  userRatingsTotal?: number;
+  isOpen?: boolean;
+  distance?: string;
+  estimatedTime?: string;
+  placeId: string;
+}
 
-// Mock facilities data for Nigeria
-const MOCK_FACILITIES: HealthFacility[] = [
-  {
-    id: "1",
-    name: "Lagos University Teaching Hospital",
-    type: "hospital",
-    address: "Idi-Araba, Lagos",
-    phone: "+234 1 234 5678",
-    location: { lat: 6.5166, lng: 3.3584 },
-    rating: 4.2,
-    is24Hours: true,
-    hasEmergency: true,
-    services: ["Emergency", "Surgery", "Pediatrics", "Maternity"],
-    distance: "2.3 km",
-    estimatedTime: "8 mins",
-  },
-  {
-    id: "2",
-    name: "Reddington Hospital",
-    type: "hospital",
-    address: "12, Idowu Martins Street, Victoria Island",
-    phone: "+234 1 280 7100",
-    location: { lat: 6.4281, lng: 3.4219 },
-    rating: 4.5,
-    is24Hours: true,
-    hasEmergency: true,
-    services: ["Emergency", "Diagnostics", "Surgery", "ICU"],
-    distance: "5.1 km",
-    estimatedTime: "15 mins",
-  },
-  {
-    id: "3",
-    name: "HealthPlus Pharmacy",
-    type: "pharmacy",
-    address: "Lekki Phase 1, Lagos",
-    phone: "+234 812 345 6789",
-    location: { lat: 6.4410, lng: 3.4765 },
-    rating: 4.0,
-    is24Hours: false,
-    hasEmergency: false,
-    services: ["Prescriptions", "OTC Drugs", "Health Products"],
-    distance: "3.2 km",
-    estimatedTime: "10 mins",
-  },
-  {
-    id: "4",
-    name: "MedPlus Pharmacy",
-    type: "pharmacy",
-    address: "Allen Avenue, Ikeja",
-    phone: "+234 809 876 5432",
-    location: { lat: 6.5975, lng: 3.3463 },
-    rating: 4.3,
-    is24Hours: true,
-    hasEmergency: false,
-    services: ["Prescriptions", "24hr Service", "Delivery"],
-    distance: "4.8 km",
-    estimatedTime: "12 mins",
-  },
-  {
-    id: "5",
-    name: "St. Nicholas Hospital",
-    type: "hospital",
-    address: "57 Campbell Street, Lagos Island",
-    phone: "+234 1 263 0091",
-    location: { lat: 6.4531, lng: 3.3958 },
-    rating: 4.4,
-    is24Hours: true,
-    hasEmergency: true,
-    services: ["Emergency", "Cardiology", "Orthopedics", "Dialysis"],
-    distance: "3.7 km",
-    estimatedTime: "11 mins",
-  },
-  {
-    id: "6",
-    name: "First Consultants Medical Centre",
-    type: "clinic",
-    address: "Opebi Road, Ikeja",
-    phone: "+234 1 774 5030",
-    location: { lat: 6.5891, lng: 3.3569 },
-    rating: 4.1,
-    is24Hours: false,
-    hasEmergency: false,
-    services: ["General Practice", "Lab Tests", "Vaccinations"],
-    distance: "5.5 km",
-    estimatedTime: "18 mins",
-  },
+type FacilityType = "all" | "hospital" | "pharmacy" | "clinic";
+
+const FACILITY_TYPES: { type: FacilityType; label: string; icon: typeof MapPin; query: string }[] = [
+  { type: "all", label: "All", icon: MapPin, query: "hospital|pharmacy|clinic" },
+  { type: "hospital", label: "Hospitals", icon: Building2, query: "hospital" },
+  { type: "pharmacy", label: "Pharmacies", icon: Pill, query: "pharmacy" },
+  { type: "clinic", label: "Clinics", icon: Stethoscope, query: "clinic|medical center" },
 ];
 
 export default function FacilitiesPage() {
+  const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [selectedFacility, setSelectedFacility] = useState<Facility | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [facilityType, setFacilityType] = useState<FacilityType>("all");
   const [showFilters, setShowFilters] = useState(false);
   const [showMap, setShowMap] = useState(false);
-  
-  const {
-    facilities,
-    selectedFacility,
-    filters,
-    setFacilities,
-    setSelectedFacility,
-    setFilters,
-    setUserLocation,
-    getFilteredFacilities,
-  } = useFacilitiesStore();
+  const [isLoading, setIsLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [placesService, setPlacesService] = useState<google.maps.places.PlacesService | null>(null);
+  const [is24Hours, setIs24Hours] = useState(false);
 
-  // Initialize with mock data
+  // Load Google Maps script
   useEffect(() => {
-    setFacilities(MOCK_FACILITIES);
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      // Get user location
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const loc = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            };
+            setUserLocation(loc);
+            initializeMap(loc);
+          },
+          () => {
+            // Default to Lagos, Nigeria
+            const defaultLoc = { lat: 6.5244, lng: 3.3792 };
+            setUserLocation(defaultLoc);
+            initializeMap(defaultLoc);
+          }
+        );
+      } else {
+        const defaultLoc = { lat: 6.5244, lng: 3.3792 };
+        setUserLocation(defaultLoc);
+        initializeMap(defaultLoc);
+      }
+    };
+    document.head.appendChild(script);
+
+    return () => {
+      const existingScript = document.querySelector(`script[src*="maps.googleapis.com"]`);
+      if (existingScript) {
+        existingScript.remove();
+      }
+    };
+  }, []);
+
+  const initializeMap = (location: { lat: number; lng: number }) => {
+    const mapDiv = document.createElement("div");
+    mapDiv.style.display = "none";
+    document.body.appendChild(mapDiv);
+
+    const mapInstance = new google.maps.Map(mapDiv, {
+      center: location,
+      zoom: 14,
+    });
+    setMap(mapInstance);
+
+    const service = new google.maps.places.PlacesService(mapInstance);
+    setPlacesService(service);
+  };
+
+  // Search for facilities
+  const searchFacilities = useCallback((type: FacilityType) => {
+    if (!placesService || !userLocation) return;
+
+    setIsLoading(true);
+    const typeConfig = FACILITY_TYPES.find(t => t.type === type) || FACILITY_TYPES[0];
     
-    // Get user location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-        },
-        () => {
-          // Default to Lagos
-          setUserLocation({ lat: 6.5244, lng: 3.3792 });
-        }
-      );
+    const request: google.maps.places.TextSearchRequest = {
+      query: typeConfig.query + " near me",
+      location: new google.maps.LatLng(userLocation.lat, userLocation.lng),
+      radius: 5000,
+    };
+
+    placesService.textSearch(request, (results, status) => {
+      if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+        const facilitiesData: Facility[] = results.map((place) => {
+          // Calculate distance
+          const distance = calculateDistance(
+            userLocation.lat,
+            userLocation.lng,
+            place.geometry?.location?.lat() || 0,
+            place.geometry?.location?.lng() || 0
+          );
+
+          // Determine facility type
+          let facilityTypeResult: "hospital" | "pharmacy" | "clinic" = "clinic";
+          const name = place.name?.toLowerCase() || "";
+          const types = place.types || [];
+          
+          if (types.includes("hospital") || name.includes("hospital") || name.includes("teaching hospital")) {
+            facilityTypeResult = "hospital";
+          } else if (types.includes("pharmacy") || name.includes("pharmacy") || name.includes("chemist")) {
+            facilityTypeResult = "pharmacy";
+          }
+
+          return {
+            id: place.place_id || String(Math.random()),
+            name: place.name || "Unknown Facility",
+            type: facilityTypeResult,
+            address: place.formatted_address || place.vicinity || "Address not available",
+            location: {
+              lat: place.geometry?.location?.lat() || 0,
+              lng: place.geometry?.location?.lng() || 0,
+            },
+            rating: place.rating,
+            userRatingsTotal: place.user_ratings_total,
+            isOpen: place.opening_hours?.isOpen?.(),
+            distance: `${distance.toFixed(1)} km`,
+            estimatedTime: `${Math.ceil(distance * 3)} mins`,
+            placeId: place.place_id || "",
+          };
+        });
+
+        // Sort by distance
+        facilitiesData.sort((a, b) => {
+          const distA = parseFloat(a.distance?.replace(" km", "") || "0");
+          const distB = parseFloat(b.distance?.replace(" km", "") || "0");
+          return distA - distB;
+        });
+
+        setFacilities(facilitiesData);
+      } else {
+        setFacilities([]);
+      }
+      setIsLoading(false);
+    });
+  }, [placesService, userLocation]);
+
+  // Calculate distance between two coordinates
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const deg2rad = (deg: number): number => {
+    return deg * (Math.PI / 180);
+  };
+
+  // Search when places service is ready or type changes
+  useEffect(() => {
+    if (placesService && userLocation) {
+      searchFacilities(facilityType);
     }
-  }, [setFacilities, setUserLocation]);
+  }, [placesService, userLocation, facilityType, searchFacilities]);
 
-  const filteredFacilities = getFilteredFacilities();
+  // Filter facilities
+  const filteredFacilities = facilities.filter((facility) => {
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      if (!facility.name.toLowerCase().includes(query) && 
+          !facility.address.toLowerCase().includes(query)) {
+        return false;
+      }
+    }
+    if (is24Hours && !facility.isOpen) {
+      return false;
+    }
+    return true;
+  });
 
-  const handleNavigate = (facility: HealthFacility) => {
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${facility.location.lat},${facility.location.lng}&travelmode=driving`;
+  const handleNavigate = (facility: Facility) => {
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${facility.location.lat},${facility.location.lng}&destination_place_id=${facility.placeId}&travelmode=driving`;
     window.open(url, "_blank");
   };
 
-  const handleCall = (phone: string) => {
-    window.location.href = `tel:${phone}`;
+  const handleCall = (placeId: string) => {
+    // Get place details for phone number
+    if (placesService) {
+      placesService.getDetails(
+        { placeId, fields: ["formatted_phone_number"] },
+        (place, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && place?.formatted_phone_number) {
+            window.location.href = `tel:${place.formatted_phone_number}`;
+          } else {
+            alert("Phone number not available for this facility");
+          }
+        }
+      );
+    }
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case "hospital": return <Building2 className="h-4 w-4 text-primary" />;
+      case "pharmacy": return <Pill className="h-4 w-4 text-green-600" />;
+      default: return <Stethoscope className="h-4 w-4 text-blue-600" />;
+    }
   };
 
   return (
@@ -173,10 +259,19 @@ export default function FacilitiesPage() {
           <div>
             <h1 className="text-xl font-bold text-foreground">Find Healthcare</h1>
             <p className="text-sm text-muted-foreground">
-              {filteredFacilities.length} facilities near you
+              {isLoading ? "Searching..." : `${filteredFacilities.length} facilities near you`}
             </p>
           </div>
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => searchFacilities(facilityType)}
+              disabled={isLoading}
+              className="gap-1"
+            >
+              <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+            </Button>
             <Button
               variant={showMap ? "default" : "outline"}
               size="sm"
@@ -202,9 +297,9 @@ export default function FacilitiesPage() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search by name, address, or service..."
-            value={filters.searchQuery}
-            onChange={(e) => setFilters({ searchQuery: e.target.value })}
+            placeholder="Search by name or address..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
           />
         </div>
@@ -214,9 +309,9 @@ export default function FacilitiesPage() {
           {FACILITY_TYPES.map(({ type, label, icon: Icon }) => (
             <Button
               key={type}
-              variant={filters.type === type ? "default" : "outline"}
+              variant={facilityType === type ? "default" : "outline"}
               size="sm"
-              onClick={() => setFilters({ type })}
+              onClick={() => setFacilityType(type)}
               className="shrink-0 gap-1"
             >
               <Icon className="h-4 w-4" />
@@ -229,22 +324,13 @@ export default function FacilitiesPage() {
         {showFilters && (
           <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
             <Button
-              variant={filters.is24Hours === true ? "default" : "outline"}
+              variant={is24Hours ? "default" : "outline"}
               size="sm"
-              onClick={() => setFilters({ is24Hours: filters.is24Hours === true ? null : true })}
+              onClick={() => setIs24Hours(!is24Hours)}
               className="gap-1"
             >
               <Clock className="h-4 w-4" />
-              24 Hours
-            </Button>
-            <Button
-              variant={filters.hasEmergency === true ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilters({ hasEmergency: filters.hasEmergency === true ? null : true })}
-              className="gap-1"
-            >
-              <AlertTriangle className="h-4 w-4" />
-              Emergency
+              Open Now
             </Button>
           </div>
         )}
@@ -257,7 +343,15 @@ export default function FacilitiesPage() {
           "flex-1 overflow-y-auto p-4",
           showMap && "hidden lg:block lg:w-1/2"
         )}>
-          {filteredFacilities.length === 0 ? (
+          {isLoading ? (
+            <div className="flex h-full flex-col items-center justify-center text-center">
+              <Loader2 className="mb-4 h-12 w-12 animate-spin text-primary" />
+              <h3 className="font-semibold text-foreground">Finding facilities...</h3>
+              <p className="text-sm text-muted-foreground">
+                Searching for healthcare facilities near you
+              </p>
+            </div>
+          ) : filteredFacilities.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <MapPin className="mb-4 h-12 w-12 text-muted-foreground" />
               <h3 className="font-semibold text-foreground">No facilities found</h3>
@@ -280,42 +374,43 @@ export default function FacilitiesPage() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
+                          {getTypeIcon(facility.type)}
                           <h3 className="font-semibold text-foreground">{facility.name}</h3>
-                          {facility.is24Hours && (
-                            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700 dark:bg-green-900/20 dark:text-green-400">
-                              24hrs
-                            </span>
-                          )}
-                          {facility.hasEmergency && (
-                            <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive">
-                              ER
-                            </span>
-                          )}
                         </div>
-                        <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-                          <MapPin className="h-3 w-3" />
-                          {facility.address}
+                        <div className="mt-1 flex items-center gap-2">
+                          {facility.isOpen !== undefined && (
+                            <span className={cn(
+                              "rounded-full px-2 py-0.5 text-xs",
+                              facility.isOpen 
+                                ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                                : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400"
+                            )}>
+                              {facility.isOpen ? "Open" : "Closed"}
+                            </span>
+                          )}
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-xs capitalize text-muted-foreground">
+                            {facility.type}
+                          </span>
+                        </div>
+                        <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          <span className="line-clamp-1">{facility.address}</span>
                         </p>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {facility.services.slice(0, 3).map((service) => (
-                            <span
-                              key={service}
-                              className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                            >
-                              {service}
-                            </span>
-                          ))}
-                        </div>
                       </div>
                       <div className="ml-4 text-right">
                         {facility.rating && (
                           <div className="flex items-center gap-1 text-amber-500">
                             <Star className="h-4 w-4 fill-current" />
                             <span className="text-sm font-medium">{facility.rating}</span>
+                            {facility.userRatingsTotal && (
+                              <span className="text-xs text-muted-foreground">
+                                ({facility.userRatingsTotal})
+                              </span>
+                            )}
                           </div>
                         )}
                         {facility.distance && (
-                          <p className="mt-1 text-sm text-muted-foreground">
+                          <p className="mt-1 text-sm font-medium text-foreground">
                             {facility.distance}
                           </p>
                         )}
@@ -340,20 +435,18 @@ export default function FacilitiesPage() {
                           <Navigation className="h-4 w-4" />
                           Navigate
                         </Button>
-                        {facility.phone && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="flex-1 gap-1"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCall(facility.phone!);
-                            }}
-                          >
-                            <Phone className="h-4 w-4" />
-                            Call
-                          </Button>
-                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 gap-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCall(facility.placeId);
+                          }}
+                        >
+                          <Phone className="h-4 w-4" />
+                          Call
+                        </Button>
                       </div>
                     )}
                   </CardContent>
@@ -374,7 +467,19 @@ export default function FacilitiesPage() {
             >
               <X className="h-4 w-4" />
             </Button>
-            <FacilityMap facilities={filteredFacilities} />
+            <div id="facility-map" className="h-full w-full">
+              {userLocation && (
+                <iframe
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  loading="lazy"
+                  allowFullScreen
+                  referrerPolicy="no-referrer-when-downgrade"
+                  src={`https://www.google.com/maps/embed/v1/search?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&q=${facilityType === "all" ? "hospital+pharmacy" : facilityType}&center=${userLocation.lat},${userLocation.lng}&zoom=14`}
+                />
+              )}
+            </div>
           </div>
         )}
       </div>

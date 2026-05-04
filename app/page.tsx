@@ -1,15 +1,13 @@
-"use client";
+import { createClient } from "@/lib/supabase/server";
+import { HomeClient } from "@/components/home/home-client";
 
-import { useAuthStore } from "@/stores/auth-store";
-import { LandingPage } from "@/components/home/landing-page";
-import { Dashboard } from "@/components/home/dashboard";
-
-export default function HomePage() {
-  const { user, isAuthenticated } = useAuthStore();
-
-  if (!isAuthenticated || !user) {
-    return <LandingPage />;
+export default async function HomePage() {
+  const supabase = await createClient();
+  if (!supabase) {
+    return <HomeClient user={null} />;
   }
 
-  return <Dashboard user={user} />;
+  const { data: { user } } = await supabase.auth.getUser();
+
+  return <HomeClient user={user} />;
 }

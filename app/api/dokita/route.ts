@@ -1,4 +1,4 @@
-import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import { convertToModelMessages, generateText, type UIMessage } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { buildEmergencyInfo, emergencyCheck, getEmergencyResponse } from "@/lib/safety-engine";
 
@@ -46,16 +46,16 @@ export async function POST(request: Request) {
       apiKey: process.env.OPENROUTER_API_KEY,
     });
 
-    const result = streamText({
+    const result = await generateText({
       model: openrouter("openai/gpt-4o-mini"),
       system: buildDokitaSystemPrompt(lang),
       messages: await convertToModelMessages(messages),
       temperature: 0.5,
-      maxOutputTokens: 220,
+      maxOutputTokens: 160,
       abortSignal: request.signal,
     });
 
-    return result.toUIMessageStreamResponse();
+    return createUiTextStream(result.text);
   } catch (error) {
     console.error("Dokita API Error:", error);
     return createUiTextStream(

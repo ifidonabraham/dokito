@@ -81,11 +81,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ errors }, { status: 400 })
   }
 
-  const profileError = await ensureProfile(supabase, user)
-  if (profileError) {
-    return NextResponse.json({ error: profileError }, { status: 500 })
-  }
-
   const { data, error } = await supabase
     .from('health_records')
     .insert({ ...record, user_id: user.id })
@@ -97,23 +92,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ record: toHealthRecordResponse(data) }, { status: 201 })
-}
-
-async function ensureProfile(supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>, user: { id: string; email?: string; user_metadata?: Record<string, unknown> }) {
-  const { error } = await supabase.from('profiles').upsert(
-    {
-      id: user.id,
-      email: user.email ?? null,
-      full_name:
-        typeof user.user_metadata?.full_name === 'string'
-          ? user.user_metadata.full_name
-          : typeof user.user_metadata?.name === 'string'
-            ? user.user_metadata.name
-            : null,
-      avatar_url: typeof user.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null,
-    },
-    { onConflict: 'id', ignoreDuplicates: true }
-  )
-
-  return error?.message ?? null
 }

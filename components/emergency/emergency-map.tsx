@@ -125,7 +125,14 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
       const places = new google.maps.places.PlacesService(hiddenPlacesRef.current)
 
       const results = await searchNearbyCare(places, origin)
-      const facilities = results.map(placeToFacility).filter(Boolean) as Facility[]
+      const facilities = results
+        .map(placeToFacility)
+        .filter(Boolean)
+        .sort((a, b) => {
+          const distanceA = getMetersBetween(origin, { lat: a!.latitude, lng: a!.longitude })
+          const distanceB = getMetersBetween(origin, { lat: b!.latitude, lng: b!.longitude })
+          return distanceA - distanceB
+        }) as Facility[]
 
       if (facilities.length === 0) {
         setError('No nearby healthcare facility was returned by Google Maps. Call 112 now and try again.')
@@ -341,22 +348,127 @@ function searchNearbyCare(
   places: google.maps.places.PlacesService,
   origin: google.maps.LatLngLiteral
 ) {
-  return new Promise<google.maps.places.PlaceResult[]>((resolve, reject) => {
+  const nearbyTerms = [
+    'hospital',
+    'medical centre',
+    'medical center',
+    'health centre',
+    'health center',
+    'clinic',
+    'university medical centre',
+    'campus medical centre',
+    'pharmacy',
+  ]
+
+  const textQueries = [
+    `hospital near ${origin.lat},${origin.lng}`,
+    `medical centre near ${origin.lat},${origin.lng}`,
+    `health centre near ${origin.lat},${origin.lng}`,
+    `clinic near ${origin.lat},${origin.lng}`,
+  ]
+
+  return runHealthcareSearches(places, origin, nearbyTerms, textQueries)
+}
+
+async function runHealthcareSearches(
+  places: google.maps.places.PlacesService,
+  origin: google.maps.LatLngLiteral,
+  nearbyTerms: string[],
+  textQueries: string[]
+) {
+  const allResults: google.maps.places.PlaceResult[] = []
+  const statuses: string[] = []
+
+  for (const keyword of nearbyTerms) {
+    const { results, status } = await nearbySearch(places, origin, keyword)
+    statuses.push(`${keyword}: ${status}`)
+    allResults.push(...results)
+
+    if (allResults.length >= 5) break
+  }
+
+  if (allResults.length === 0) {
+    for (const query of textQueries) {
+      const { results, status } = await textSearch(places, origin, query)
+      statuses.push(`${query}: ${status}`)
+      allResults.push(...results)
+
+      if (allResults.length >= 5) break
+    }
+  }
+
+  const uniqueResults = uniquePlaces(allResults)
+
+  if (uniqueResults.length === 0) {
+    throw new Error(
+      `Google Maps could not find nearby healthcare facilities. Places status: ${statuses.join('; ')}. Call 112 immediately.`
+    )
+  }
+
+  return uniqueResults.sort((a, b) => {
+    const aLocation = a.geometry?.location
+    const bLocation = b.geometry?.location
+    if (!aLocation || !bLocation) return 0
+
+    return (
+      getMetersBetween(origin, { lat: aLocation.lat(), lng: aLocation.lng() }) -
+      getMetersBetween(origin, { lat: bLocation.lat(), lng: bLocation.lng() })
+    )
+  })
+}
+
+function nearbySearch(
+  places: google.maps.places.PlacesService,
+  origin: google.maps.LatLngLiteral,
+  keyword: string
+) {
+  return new Promise<{ results: google.maps.places.PlaceResult[]; status: string }>((resolve) => {
     places.nearbySearch(
       {
         location: origin,
         rankBy: google.maps.places.RankBy.DISTANCE,
-        keyword: 'hospital clinic health centre medical centre emergency',
+        keyword,
       },
       (results, status) => {
-        if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-          resolve(results)
-          return
-        }
-
-        reject(new Error('Google Maps could not find nearby healthcare facilities. Call 112 immediately.'))
+        resolve({
+          results: status === google.maps.places.PlacesServiceStatus.OK && results ? results : [],
+          status,
+        })
       }
     )
+  })
+}
+
+function textSearch(
+  places: google.maps.places.PlacesService,
+  origin: google.maps.LatLngLiteral,
+  query: string
+) {
+  return new Promise<{ results: google.maps.places.PlaceResult[]; status: string }>((resolve) => {
+    places.textSearch(
+      {
+        query,
+        location: origin,
+        radius: 10000,
+      },
+      (results, status) => {
+        resolve({
+          results: status === google.maps.places.PlacesServiceStatus.OK && results ? results : [],
+          status,
+        })
+      }
+    )
+  })
+}
+
+function uniquePlaces(results: google.maps.places.PlaceResult[]) {
+  const seen = new Set<string>()
+
+  return results.filter((place) => {
+    const key = place.place_id || place.name
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
   })
 }
 
@@ -397,6 +509,26 @@ function formatElapsed(seconds: number) {
   const minutes = Math.floor(seconds / 60)
   const secs = seconds % 60
   return `${minutes}:${secs.toString().padStart(2, '0')}`
+}
+
+function getMetersBetween(
+  origin: google.maps.LatLngLiteral,
+  destination: google.maps.LatLngLiteral
+) {
+  const radius = 6371e3
+  const originLat = (origin.lat * Math.PI) / 180
+  const destinationLat = (destination.lat * Math.PI) / 180
+  const deltaLat = ((destination.lat - origin.lat) * Math.PI) / 180
+  const deltaLng = ((destination.lng - origin.lng) * Math.PI) / 180
+  const a =
+    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+    Math.cos(originLat) *
+      Math.cos(destinationLat) *
+      Math.sin(deltaLng / 2) *
+      Math.sin(deltaLng / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+  return radius * c
 }
 
 declare global {

@@ -3,9 +3,8 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Search, Menu, Bell, User, LogOut, Settings, FileText, Heart } from 'lucide-react'
+import { Menu, User, LogOut, FileText, Heart, MapPin, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,7 +21,6 @@ export function TopNavbar() {
   const router = useRouter()
   const supabase = createClient()
   const { isOpen, toggle } = useSidebarStore()
-  const [searchQuery, setSearchQuery] = useState('')
   const [user, setUser] = useState<SupabaseUser | null>(null)
 
   useEffect(() => {
@@ -42,13 +40,6 @@ export function TopNavbar() {
 
     return () => subscription.unsubscribe()
   }, [supabase])
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (searchQuery.trim()) {
-      router.push(`/?q=${encodeURIComponent(searchQuery)}`)
-    }
-  }
 
   const handleSignOut = async () => {
     if (!supabase) return
@@ -90,30 +81,32 @@ export function TopNavbar() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 font-bold text-lg text-primary">
             <Heart className="h-6 w-6 fill-primary text-primary-foreground" />
-            <span className="hidden sm:inline">Dokita</span>
+            <span className="hidden sm:inline">AKILI Health</span>
           </Link>
 
-          {/* Desktop Search */}
-          <div className="hidden md:flex flex-1 max-w-md mx-auto">
-            <form onSubmit={handleSearch} className="w-full relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Search symptoms, conditions, drugs..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 h-9 bg-secondary/50 border-0 focus-visible:ring-primary"
-              />
-            </form>
-          </div>
+          <nav className="mx-auto hidden items-center gap-1 md:flex" aria-label="Primary navigation">
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/records">
+                <FileText className="mr-2 h-4 w-4" />
+                Records
+              </Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/ask">
+                <MessageCircle className="mr-2 h-4 w-4" />
+                Dokita
+              </Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/facilities">
+                <MapPin className="mr-2 h-4 w-4" />
+                Facilities
+              </Link>
+            </Button>
+          </nav>
 
           {/* Right side actions */}
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="hidden sm:flex relative h-9 w-9">
-              <Bell className="h-5 w-5" />
-              <span className="sr-only">Notifications</span>
-            </Button>
-
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -142,12 +135,6 @@ export function TopNavbar() {
                     <Link href="/records">
                       <FileText className="mr-2 h-4 w-4" />
                       Health Records
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/appointments">
-                      <Settings className="mr-2 h-4 w-4" />
-                      Reminders
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -181,19 +168,6 @@ export function TopNavbar() {
           </div>
         </div>
 
-        {/* Mobile Search */}
-        <div className="md:hidden px-4 pb-3">
-          <form onSubmit={handleSearch} className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 h-9 bg-secondary/50 border-0"
-            />
-          </form>
-        </div>
       </header>
     </>
   )

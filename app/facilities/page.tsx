@@ -318,11 +318,16 @@ export default function FacilitiesPage() {
     window.open(url, "_blank");
   };
 
-  const handleCall = (placeId: string) => {
+  const handleCall = (facility: Facility) => {
+    if (facility.phone) {
+      window.location.href = `tel:${facility.phone}`;
+      return;
+    }
+
     // Get place details for phone number
-    if (placesService) {
+    if (placesService && facility.placeId) {
       placesService.getDetails(
-        { placeId, fields: ["formatted_phone_number"] },
+        { placeId: facility.placeId, fields: ["formatted_phone_number"] },
         (place, status) => {
           if (status === google.maps.places.PlacesServiceStatus.OK && place?.formatted_phone_number) {
             window.location.href = `tel:${place.formatted_phone_number}`;
@@ -331,7 +336,10 @@ export default function FacilitiesPage() {
           }
         }
       );
+      return;
     }
+
+    alert("Phone number not available for this facility");
   };
 
   const getTypeIcon = (type: string) => {
@@ -538,7 +546,7 @@ export default function FacilitiesPage() {
                           className="flex-1 gap-1"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleCall(facility.placeId);
+                            handleCall(facility);
                           }}
                         >
                           <Phone className="h-4 w-4" />

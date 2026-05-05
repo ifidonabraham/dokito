@@ -8,16 +8,17 @@ import { useEmergencyStore } from '@/stores/emergency-store'
 interface EmergencyButtonProps {
   className?: string
   variant?: 'floating' | 'inline'
+  children?: React.ReactNode
 }
 
-export function EmergencyButton({ className, variant = 'floating' }: EmergencyButtonProps) {
+export function EmergencyButton({ className, variant = 'floating', children }: EmergencyButtonProps) {
   const { isEmergencyMode, activateEmergency } = useEmergencyStore()
 
   const handleEmergencyClick = () => {
     activateEmergency()
   }
 
-  // Don't show the button if already in emergency mode
+  // Emergency mode has its own full-screen call controls.
   if (isEmergencyMode && variant === 'floating') {
     return null
   }
@@ -33,8 +34,12 @@ export function EmergencyButton({ className, variant = 'floating' }: EmergencyBu
           className
         )}
       >
-        <Phone className="h-5 w-5" />
-        Emergency
+        {children || (
+          <>
+            <Phone className="h-5 w-5" />
+            Emergency
+          </>
+        )}
       </Button>
     )
   }
@@ -50,9 +55,10 @@ export function EmergencyButton({ className, variant = 'floating' }: EmergencyBu
         'transition-all duration-300 ease-in-out',
         'hover:scale-105 hover:shadow-xl hover:shadow-destructive/40',
         'active:scale-95',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2',
         'emergency-pulse',
         // Mobile: bottom right above bottom nav
-        'bottom-24 right-4 md:bottom-32 md:right-6',
+        'bottom-24 right-4 md:bottom-32 md:right-6 lg:hidden',
         className
       )}
       aria-label="Emergency - Get immediate help"

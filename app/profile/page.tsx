@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
-  Bell,
   ChevronRight,
   Droplet,
   Heart,
@@ -21,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase/client";
 
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -38,6 +36,9 @@ interface ProfileRow {
   full_name: string | null;
   phone: string | null;
   blood_type: string | null;
+  genotype: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
   preferred_language: string | null;
   avatar_url: string | null;
 }
@@ -52,14 +53,10 @@ export default function ProfilePage() {
     name: "",
     phone: "",
     bloodType: "",
+    genotype: "",
+    emergencyContactName: "",
+    emergencyContactPhone: "",
     language: "en",
-  });
-
-  const [notifications, setNotifications] = useState({
-    medicationReminders: true,
-    appointmentReminders: true,
-    healthTips: true,
-    emergencyAlerts: true,
   });
 
   useEffect(() => {
@@ -77,7 +74,7 @@ export default function ProfilePage() {
       if (user) {
         const { data } = await supabase
           .from("profiles")
-          .select("full_name, phone, blood_type, preferred_language, avatar_url")
+          .select("full_name, phone, blood_type, genotype, emergency_contact_name, emergency_contact_phone, preferred_language, avatar_url")
           .eq("id", user.id)
           .maybeSingle<ProfileRow>();
 
@@ -85,6 +82,9 @@ export default function ProfilePage() {
           name: data?.full_name || user.user_metadata?.full_name || user.email?.split("@")[0] || "",
           phone: data?.phone || "",
           bloodType: data?.blood_type || "",
+          genotype: data?.genotype || "",
+          emergencyContactName: data?.emergency_contact_name || "",
+          emergencyContactPhone: data?.emergency_contact_phone || "",
           language: data?.preferred_language || "en",
         });
       }
@@ -104,6 +104,9 @@ export default function ProfilePage() {
       full_name: formData.name || null,
       phone: formData.phone || null,
       blood_type: formData.bloodType || null,
+      genotype: formData.genotype || null,
+      emergency_contact_name: formData.emergencyContactName || null,
+      emergency_contact_phone: formData.emergencyContactPhone || null,
       preferred_language: formData.language,
       updated_at: new Date().toISOString(),
     });
@@ -232,6 +235,23 @@ export default function ProfilePage() {
                   ))}
                 </select>
               </div>
+              <div>
+                <Label htmlFor="genotype">Genotype</Label>
+                <select
+                  id="genotype"
+                  value={formData.genotype}
+                  onChange={(e) => setFormData({ ...formData, genotype: e.target.value })}
+                  disabled={!isEditing}
+                  className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-foreground disabled:bg-muted"
+                >
+                  <option value="">Select genotype</option>
+                  {["AA", "AS", "SS", "AC", "SC"].map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div>
@@ -265,8 +285,41 @@ export default function ProfilePage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="h-5 w-5" />
+              Emergency Contact
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="emergencyContactName">Contact Name</Label>
+              <Input
+                id="emergencyContactName"
+                value={formData.emergencyContactName}
+                onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })}
+                placeholder="Who should we call?"
+                disabled={!isEditing}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="emergencyContactPhone">Contact Phone</Label>
+              <Input
+                id="emergencyContactPhone"
+                value={formData.emergencyContactPhone}
+                onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })}
+                placeholder="+234 XXX XXX XXXX"
+                disabled={!isEditing}
+                className="mt-1"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
               <Heart className="h-5 w-5" />
-              Health Information
+              Health Basics
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -277,59 +330,18 @@ export default function ProfilePage() {
               <div className="flex items-center gap-3">
                 <Droplet className="h-5 w-5 text-destructive" />
                 <div>
-                  <p className="font-medium text-foreground">Allergies</p>
-                  <p className="text-sm text-muted-foreground">Manage allergies in Health Records</p>
+                  <p className="font-medium text-foreground">Health Records</p>
+                  <p className="text-sm text-muted-foreground">Manage diagnoses, lab results, prescriptions, and visit notes</p>
                 </div>
               </div>
               <ChevronRight className="h-5 w-5 text-muted-foreground" />
             </button>
-
-            <button className="flex w-full items-center justify-between rounded-lg p-3 text-left transition-colors hover:bg-accent">
-              <div className="flex items-center gap-3">
-                <Users className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="font-medium text-foreground">Emergency Contacts</p>
-                  <p className="text-sm text-muted-foreground">Coming soon</p>
-                </div>
-              </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            </button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Bell className="h-5 w-5" />
-              Notifications
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {[
-              ["medicationReminders", "Medication Reminders", "Get notified when it is time to take your medication"],
-              ["appointmentReminders", "Appointment Reminders", "Reminders for upcoming appointments"],
-              ["healthTips", "Health Tips", "Weekly health tips and insights"],
-              ["emergencyAlerts", "Emergency Alerts", "Critical health alerts and updates"],
-            ].map(([key, label, description]) => (
-              <div key={key} className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="font-medium text-foreground">{label}</p>
-                  <p className="text-sm text-muted-foreground">{description}</p>
-                </div>
-                <Switch
-                  checked={notifications[key as keyof typeof notifications]}
-                  onCheckedChange={(checked) =>
-                    setNotifications({ ...notifications, [key]: checked })
-                  }
-                />
-              </div>
-            ))}
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="py-4">
-            <button className="flex w-full items-center justify-between rounded-lg p-3 text-left transition-colors hover:bg-accent">
+            <div className="flex w-full items-center justify-between rounded-lg p-3 text-left">
               <div className="flex items-center gap-3">
                 <Shield className="h-5 w-5 text-primary" />
                 <div>
@@ -337,19 +349,17 @@ export default function ProfilePage() {
                   <p className="text-sm text-muted-foreground">Your profile is protected by Supabase auth and row-level security</p>
                 </div>
               </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            </button>
+            </div>
 
-            <button className="flex w-full items-center justify-between rounded-lg p-3 text-left transition-colors hover:bg-accent">
+            <div className="flex w-full items-center justify-between rounded-lg p-3 text-left">
               <div className="flex items-center gap-3">
                 <Settings className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="font-medium text-foreground">App Settings</p>
-                  <p className="text-sm text-muted-foreground">Language and notification preferences</p>
+                  <p className="font-medium text-foreground">Medication reminders and chronic tracking</p>
+                  <p className="text-sm text-muted-foreground">Coming later when backend support is available</p>
                 </div>
               </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            </button>
+            </div>
           </CardContent>
         </Card>
 

@@ -8,17 +8,13 @@ import {
   Mic, 
   MicOff, 
   Stethoscope, 
-  History,
-  Plus,
   Languages,
   AlertTriangle,
   Sparkles,
-  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { useChatStore } from "@/stores/chat-store";
 import { useEmergencyStore } from "@/stores/emergency-store";
 import { detectLanguage } from "@/lib/language-detection";
 import { emergencyCheck } from "@/lib/safety-engine";
@@ -39,6 +35,29 @@ const SUGGESTED_PROMPTS = [
   "I need help managing my diabetes",
 ];
 
+type BrowserSpeechRecognition = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null;
+  start: () => void;
+}
+
+type BrowserSpeechRecognitionEvent = {
+  results: {
+    [index: number]: {
+      [index: number]: {
+        transcript: string;
+      };
+    };
+  };
+}
+
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+
 // Helper to extract text from UIMessage parts
 function getMessageText(message: { parts?: Array<{ type: string; text?: string }> }): string {
   if (!message.parts || !Array.isArray(message.parts)) return "";
@@ -52,18 +71,8 @@ export function DokitaChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<typeof LANGUAGES[number]["code"]>("en");
-  
-  const { 
-    sessions, 
-    currentSessionId, 
-    createSession, 
-    setCurrentSession,
-    addMessage,
-    getCurrentSession,
-  } = useChatStore();
-  
+
   const { activateEmergency } = useEmergencyStore();
 
   // AI SDK 6 useChat with DefaultChatTransport
@@ -77,13 +86,6 @@ export function DokitaChat() {
   });
 
   const isLoading = status === "streaming" || status === "submitted";
-
-  // Initialize session
-  useEffect(() => {
-    if (!currentSessionId) {
-      createSession();
-    }
-  }, [currentSessionId, createSession]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -103,6 +105,11 @@ export function DokitaChat() {
     }
 
     const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice input is not supported in your browser");
+      return;
+    }
+
     const recognition = new SpeechRecognition();
     
     recognition.lang = selectedLanguage === "pcm" ? "en-NG" : selectedLanguage;
@@ -113,7 +120,7 @@ export function DokitaChat() {
     recognition.onend = () => setIsListening(false);
     recognition.onerror = () => setIsListening(false);
     
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    recognition.onresult = (event: BrowserSpeechRecognitionEvent) => {
       const transcript = event.results[0][0].transcript;
       setInput(transcript);
     };
@@ -144,25 +151,9 @@ export function DokitaChat() {
       return;
     }
 
-    // Add user message to store
-    addMessage({
-      role: "user",
-      content: trimmedInput,
-    });
-
     // Send message using AI SDK 6 pattern
     sendMessage({ text: trimmedInput });
     setInput("");
-  };
-
-  const handleNewChat = () => {
-    createSession();
-    setShowHistory(false);
-  };
-
-  const handleSelectSession = (sessionId: string) => {
-    setCurrentSession(sessionId);
-    setShowHistory(false);
   };
 
   const handleSuggestedPrompt = (prompt: string) => {
@@ -196,59 +187,8 @@ export function DokitaChat() {
               </option>
             ))}
           </select>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowHistory(!showHistory)}
-          >
-            <History className="h-5 w-5" />
-          </Button>
-          
-          <Button variant="ghost" size="icon" onClick={handleNewChat}>
-            <Plus className="h-5 w-5" />
-          </Button>
         </div>
       </div>
-
-      {/* Chat History Sidebar */}
-      {showHistory && (
-        <div className="absolute right-0 top-14 z-50 h-[calc(100%-3.5rem)] w-72 border-l border-border bg-card shadow-lg">
-          <div className="flex items-center justify-between border-b border-border p-4">
-            <h2 className="font-semibold text-foreground">Chat History</h2>
-            <Button variant="ghost" size="icon" onClick={() => setShowHistory(false)}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="overflow-y-auto p-2">
-            {sessions.length === 0 ? (
-              <p className="p-4 text-center text-sm text-muted-foreground">
-                No chat history yet
-              </p>
-            ) : (
-              <div className="space-y-1">
-                {sessions.map((session) => (
-                  <button
-                    key={session.id}
-                    onClick={() => handleSelectSession(session.id)}
-                    className={cn(
-                      "w-full rounded-lg p-3 text-left transition-colors hover:bg-accent",
-                      currentSessionId === session.id && "bg-accent"
-                    )}
-                  >
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {session.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(session.updatedAt).toLocaleDateString()}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4">
@@ -390,6 +330,7 @@ export function DokitaChat() {
 // Add SpeechRecognition types
 declare global {
   interface Window {
-    webkitSpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
+    SpeechRecognition?: BrowserSpeechRecognitionConstructor;
   }
 }

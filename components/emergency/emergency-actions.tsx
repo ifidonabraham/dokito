@@ -3,6 +3,7 @@
 import { Phone, Navigation, MessageSquare, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEmergencyStore } from "@/stores/emergency-store";
+import { formatDistance } from "@/lib/maps";
 
 const EMERGENCY_NUMBERS = {
   ambulance: "112",
@@ -12,7 +13,10 @@ const EMERGENCY_NUMBERS = {
 };
 
 export function EmergencyActions() {
-  const { emergencyType, nearestFacility, setActiveView } = useEmergencyStore();
+  const { emergencyType, nearestFacilities, destination, eta, distance, setActiveView } = useEmergencyStore();
+
+  // Use the selected destination first, fall back to nearest facility from API
+  const nearestFacility = destination ?? nearestFacilities[0] ?? null;
 
   const handleCall = (number: string) => {
     window.location.href = `tel:${number}`;
@@ -20,35 +24,47 @@ export function EmergencyActions() {
 
   const handleNavigate = () => {
     if (nearestFacility) {
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${nearestFacility.location.lat},${nearestFacility.location.lng}&travelmode=driving`;
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${nearestFacility.latitude},${nearestFacility.longitude}&travelmode=driving`;
       window.open(url, "_blank");
     }
   };
 
   const handleShareLocation = async () => {
-    if (navigator.share && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(async (position) => {
+    if (!navigator.geolocation) {
+      alert("Location sharing is not available on this device.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
         const { latitude, longitude } = position.coords;
         const message = `EMERGENCY! I need help. My location: https://www.google.com/maps?q=${latitude},${longitude}`;
-        
+
         try {
-          await navigator.share({
-            title: "Emergency - Need Help",
-            text: message,
-          });
-        } catch {
-          // Fallback to clipboard
+          if (navigator.share) {
+            await navigator.share({
+              title: "Emergency - Need Help",
+              text: message,
+            });
+            return;
+          }
+
           await navigator.clipboard.writeText(message);
-          alert("Location copied to clipboard. Share with emergency contacts.");
+          alert("Location copied. Share it with emergency contacts.");
+        } catch {
+          alert(message);
         }
-      });
-    }
+      },
+      () => {
+        alert("Could not access your location. Call 112 or 199 immediately.");
+      }
+    );
   };
 
   return (
     <div className="space-y-4">
       <h3 className="font-semibold text-foreground">Quick Actions</h3>
-      
+
       <div className="grid grid-cols-2 gap-3">
         <Button
           variant="destructive"
@@ -106,7 +122,8 @@ export function EmergencyActions() {
           </p>
           <p className="text-sm text-foreground">{nearestFacility.name}</p>
           <p className="text-xs text-muted-foreground">
-            {nearestFacility.distance} away - {nearestFacility.estimatedTime}
+            {distance != null ? `${formatDistance(distance)} away` : nearestFacility.distance != null ? formatDistance(nearestFacility.distance) : "Distance unknown"}
+            {eta != null ? ` - ${eta} min` : nearestFacility.eta != null ? ` - ${nearestFacility.eta} min` : ""}
           </p>
           {nearestFacility.phone && (
             <Button

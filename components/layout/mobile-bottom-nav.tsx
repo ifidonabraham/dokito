@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, FileText, MessageCircle, Calendar, User } from 'lucide-react'
+import { Home, FileText, MessageCircle, MapPin, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEmergencyStore } from '@/stores/emergency-store'
 
@@ -15,8 +15,8 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/records', label: 'Records', icon: FileText },
-  { href: '/ask', label: 'Ask Dokita', icon: MessageCircle },
-  { href: '/appointments', label: 'Appts', icon: Calendar },
+  { href: '/ask', label: 'Dokita', icon: MessageCircle },
+  { href: '/facilities', label: 'Facilities', icon: MapPin },
   { href: '/profile', label: 'Profile', icon: User },
 ]
 
@@ -34,7 +34,7 @@ export function MobileBottomNav() {
       <div className="flex items-center justify-around h-16">
         {navItems.map((item) => {
           const Icon = item.icon
-          const isActive = pathname === item.href
+          const isActive = item.href === '/' ? pathname === item.href : pathname.startsWith(item.href)
 
           return (
             <Link
@@ -46,6 +46,7 @@ export function MobileBottomNav() {
                   ? 'text-primary'
                   : 'text-muted-foreground hover:text-foreground'
               )}
+              aria-current={isActive ? 'page' : undefined}
             >
               <Icon
                 className={cn(

@@ -118,29 +118,14 @@ export function FacilityMap({ facilities }: FacilityMapProps) {
   }, [mapLoaded, facilities, userLocation, selectedFacility, setSelectedFacility]);
 
   if (mapError) {
-    const center = selectedFacility
-      ? { lat: selectedFacility.latitude, lng: selectedFacility.longitude }
-      : userLocation || { lat: 6.5244, lng: 3.3792 };
-
     return (
-      <div className="relative h-full w-full overflow-hidden bg-muted">
-        <iframe
-          title="Facility map"
-          src={buildOpenStreetMapUrl(center.lat, center.lng)}
-          className="h-full w-full border-0"
-          loading="lazy"
-          referrerPolicy="no-referrer-when-downgrade"
-        />
-        <div className="absolute left-4 top-4 max-w-xs rounded-lg border bg-card p-3 text-sm shadow-lg">
-          <div className="mb-2 flex items-center gap-2 font-semibold text-foreground">
-            <MapPin className="h-4 w-4 text-primary" />
-            Map & directions
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Showing a simple map. Select a facility from the list, then tap Navigate.
-          </p>
-          <p className="mt-2 text-[11px] text-muted-foreground">{mapError}</p>
-        </div>
+      <div className="flex h-full flex-col items-center justify-center bg-muted p-8 text-center">
+        <MapPin className="mb-4 h-12 w-12 text-muted-foreground" />
+        <h3 className="mb-2 font-semibold text-foreground">Map API not available</h3>
+        <p className="mb-4 text-sm text-muted-foreground">{mapError}</p>
+        <p className="text-xs text-muted-foreground">
+          The in-platform map needs a working Google Maps API key.
+        </p>
       </div>
     );
   }
@@ -189,31 +174,17 @@ export function FacilityMap({ facilities }: FacilityMapProps) {
               size="sm"
               className="flex-1 gap-1"
               onClick={() => {
-                const url = `https://www.google.com/maps/dir/?api=1&destination=${selectedFacility.latitude},${selectedFacility.longitude}&travelmode=driving`;
-                window.open(url, "_blank");
+                mapRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
               }}
             >
               <Navigation className="h-3 w-3" />
-              Navigate
+              Route Shown
             </Button>
           </div>
         </div>
       )}
     </div>
   );
-}
-
-function buildOpenStreetMapUrl(latitude: number, longitude: number) {
-  const latPad = 0.04;
-  const lngPad = 0.05;
-  const bbox = [
-    longitude - lngPad,
-    latitude - latPad,
-    longitude + lngPad,
-    latitude + latPad,
-  ].join("%2C");
-
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${latitude}%2C${longitude}`;
 }
 
 // Add Google Maps types

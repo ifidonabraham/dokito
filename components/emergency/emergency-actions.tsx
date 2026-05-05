@@ -22,11 +22,8 @@ export function EmergencyActions() {
     window.location.href = `tel:${number}`;
   };
 
-  const handleNavigate = () => {
-    if (nearestFacility) {
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${nearestFacility.latitude},${nearestFacility.longitude}&travelmode=driving`;
-      window.open(url, "_blank");
-    }
+  const handleViewRoute = () => {
+    setActiveView("map");
   };
 
   const handleShareLocation = async () => {
@@ -78,11 +75,11 @@ export function EmergencyActions() {
         <Button
           variant="outline"
           className="h-16 flex-col gap-1 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-          onClick={handleNavigate}
+          onClick={handleViewRoute}
           disabled={!nearestFacility}
         >
           <Navigation className="h-5 w-5" />
-          <span className="text-xs">Navigate</span>
+          <span className="text-xs">View Route</span>
         </Button>
 
         <Button

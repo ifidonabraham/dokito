@@ -59,6 +59,7 @@ export default function FacilitiesPage() {
   const [placesService, setPlacesService] = useState<google.maps.places.PlacesService | null>(null);
   const [is24Hours, setIs24Hours] = useState(false);
   const [mapsError, setMapsError] = useState<string | null>(null);
+  const [routeFacility, setRouteFacility] = useState<Facility | null>(null);
 
   // Load Google Maps script
   useEffect(() => {
@@ -314,8 +315,9 @@ export default function FacilitiesPage() {
   });
 
   const handleNavigate = (facility: Facility) => {
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${facility.location.lat},${facility.location.lng}&destination_place_id=${facility.placeId}&travelmode=driving`;
-    window.open(url, "_blank");
+    setSelectedFacility(facility);
+    setRouteFacility(facility);
+    setShowMap(true);
   };
 
   const mapCenter = selectedFacility?.location || userLocation;
@@ -541,7 +543,7 @@ export default function FacilitiesPage() {
                           }}
                         >
                           <Navigation className="h-4 w-4" />
-                          Navigate
+                          Show Route
                         </Button>
                         <Button
                           size="sm"
@@ -576,7 +578,16 @@ export default function FacilitiesPage() {
               <X className="h-4 w-4" />
             </Button>
             <div id="facility-map" className="h-full w-full">
-              {mapCenter && (
+              {!hasGoogleMapsKey ? (
+                <div className="flex h-full flex-col items-center justify-center bg-muted p-6 text-center">
+                  <AlertTriangle className="mb-3 h-10 w-10 text-amber-600" />
+                  <h3 className="font-semibold text-foreground">Map API not available</h3>
+                  <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+                    Google Maps is not configured correctly, so the in-platform map cannot load.
+                    Facility results are still shown in the list.
+                  </p>
+                </div>
+              ) : routeFacility && userLocation ? (
                 <iframe
                   width="100%"
                   height="100%"
@@ -584,12 +595,22 @@ export default function FacilitiesPage() {
                   loading="lazy"
                   allowFullScreen
                   referrerPolicy="no-referrer-when-downgrade"
-                  src={
-                    hasGoogleMapsKey
-                      ? `https://www.google.com/maps/embed/v1/search?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&q=${facilityType === "all" ? "hospital+pharmacy" : facilityType}&center=${mapCenter.lat},${mapCenter.lng}&zoom=14`
-                      : buildOpenStreetMapUrl(mapCenter.lat, mapCenter.lng)
-                  }
+                  src={`https://www.google.com/maps/embed/v1/directions?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&origin=${userLocation.lat},${userLocation.lng}&destination=${routeFacility.location.lat},${routeFacility.location.lng}&mode=driving`}
                 />
+              ) : mapCenter ? (
+                <iframe
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  loading="lazy"
+                  allowFullScreen
+                  referrerPolicy="no-referrer-when-downgrade"
+                  src={`https://www.google.com/maps/embed/v1/search?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&q=${facilityType === "all" ? "hospital+pharmacy" : facilityType}&center=${mapCenter.lat},${mapCenter.lng}&zoom=14`}
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center bg-muted text-sm text-muted-foreground">
+                  Finding your location...
+                </div>
               )}
             </div>
           </div>
@@ -597,17 +618,4 @@ export default function FacilitiesPage() {
       </div>
     </div>
   );
-}
-
-function buildOpenStreetMapUrl(latitude: number, longitude: number) {
-  const latPad = 0.04;
-  const lngPad = 0.05;
-  const bbox = [
-    longitude - lngPad,
-    latitude - latPad,
-    longitude + lngPad,
-    latitude + latPad,
-  ].join("%2C");
-
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${latitude}%2C${longitude}`;
 }

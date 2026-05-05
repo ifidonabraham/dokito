@@ -1,45 +1,31 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { Navigation, MapPin, Clock, Route, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { AlertTriangle, Clock, MapPin, RefreshCw, Route } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useEmergencyStore } from '@/stores/emergency-store'
-import {
-  getCurrentLocation,
-  getNavigationLink,
-  formatDistance,
-  estimateTravelTime,
-  calculateDistance,
-} from '@/lib/maps'
+import { formatDistance, getCurrentLocation } from '@/lib/maps'
 import type { Facility } from '@/lib/types'
 
 interface EmergencyMapProps {
   onFacilitySelected?: (facility: Facility) => void
 }
 
-type ApiFacility = Omit<Partial<Facility>, 'distance' | 'eta'> & {
-  id: string
-  name: string
-  type: string
-  address: string
-  phone?: string
-  location?: { lat: number; lng: number }
-  latitude?: number
-  longitude?: number
-  rating?: number
-  averageRating?: number
-  is24Hours?: boolean
-  isOpen24Hours?: boolean
-  hasEmergency: boolean
-  services?: string[]
-  state?: string
-  lga?: string
-  distance?: string | number
-  estimatedTime?: string
-}
+type JourneyStatus = 'loading' | 'routing' | 'active' | 'error'
+
+const GOOGLE_MAPS_SCRIPT_ID = 'akili-google-maps'
 
 export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
+  const mapRef = useRef<HTMLDivElement>(null)
+  const hiddenPlacesRef = useRef<HTMLDivElement | null>(null)
+  const mapInstanceRef = useRef<google.maps.Map | null>(null)
+  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
+  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
+  const watchIdRef = useRef<number | null>(null)
+  const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const lastRouteAtRef = useRef(0)
+
   const {
     currentLocation,
     destination,
@@ -50,181 +36,224 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
     updateJourney,
   } = useEmergencyStore()
 
-  const [isLoadingLocation, setIsLoadingLocation] = useState(true)
-  const [locationError, setLocationError] = useState<string | null>(null)
+  const [status, setStatus] = useState<JourneyStatus>('loading')
+  const [error, setError] = useState<string | null>(null)
   const [nearbyFacilities, setNearbyFacilities] = useState<Facility[]>([])
-  const [isNavigating, setIsNavigating] = useState(false)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
 
-  // Get user location and fetch nearby emergency facilities
-  const fetchLocation = useCallback(async () => {
-    setIsLoadingLocation(true)
-    setLocationError(null)
+  const routeToFacility = useCallback(
+    async (origin: google.maps.LatLngLiteral, facility: Facility, force = false) => {
+      const directionsService = directionsServiceRef.current
+      const directionsRenderer = directionsRendererRef.current
+
+      if (!directionsService || !directionsRenderer) return
+
+      const now = Date.now()
+      if (!force && now - lastRouteAtRef.current < 12000) return
+      lastRouteAtRef.current = now
+
+      setStatus((current) => (current === 'active' ? current : 'routing'))
+
+      try {
+        const result = await directionsService.route({
+          origin,
+          destination: { lat: facility.latitude, lng: facility.longitude },
+          travelMode: google.maps.TravelMode.DRIVING,
+          provideRouteAlternatives: false,
+        })
+
+        directionsRenderer.setDirections(result)
+
+        const leg = result.routes[0]?.legs[0]
+        const remainingDistance = leg?.distance?.value ?? facility.distance ?? 0
+        const remainingEta = leg?.duration?.value ? Math.max(Math.ceil(leg.duration.value / 60), 1) : facility.eta ?? 0
+        const totalSeconds = elapsedSeconds + remainingEta * 60
+        const progress = totalSeconds > 0 ? Math.min((elapsedSeconds / totalSeconds) * 100, 100) : 0
+
+        updateJourney(remainingEta, remainingDistance, progress)
+        setStatus('active')
+      } catch {
+        setError('The map could not calculate a route right now. Call 112 immediately and try again.')
+        setStatus('error')
+      }
+    },
+    [elapsedSeconds, updateJourney]
+  )
+
+  const startLiveJourney = useCallback(
+    (facility: Facility, origin: google.maps.LatLngLiteral) => {
+      setDestination(facility)
+      onFacilitySelected?.(facility)
+      setElapsedSeconds(0)
+      routeToFacility(origin, facility, true)
+
+      if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current)
+      elapsedTimerRef.current = setInterval(() => {
+        setElapsedSeconds((seconds) => seconds + 1)
+      }, 1000)
+
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current)
+      }
+
+      if (navigator.geolocation) {
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          (position) => {
+            const liveOrigin = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            }
+            setCurrentLocation(position.coords)
+            routeToFacility(liveOrigin, facility)
+          },
+          () => {
+            setError('Live location updates stopped. The route remains visible; call 112 if you need help.')
+          },
+          { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+        )
+      }
+    },
+    [onFacilitySelected, routeToFacility, setCurrentLocation, setDestination]
+  )
+
+  const findNearestCare = useCallback(
+    async (origin: google.maps.LatLngLiteral) => {
+      const map = mapInstanceRef.current
+      if (!map) return
+
+      hiddenPlacesRef.current = hiddenPlacesRef.current ?? document.createElement('div')
+      const places = new google.maps.places.PlacesService(hiddenPlacesRef.current)
+
+      const results = await searchNearbyCare(places, origin)
+      const facilities = results.map(placeToFacility).filter(Boolean) as Facility[]
+
+      if (facilities.length === 0) {
+        setError('No nearby healthcare facility was returned by Google Maps. Call 112 now and try again.')
+        setStatus('error')
+        return
+      }
+
+      setNearbyFacilities(facilities)
+      startLiveJourney(facilities[0], origin)
+    },
+    [startLiveJourney]
+  )
+
+  const startEmergencyMap = useCallback(async () => {
+    setStatus('loading')
+    setError(null)
+    setNearbyFacilities([])
+
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+    if (!apiKey) {
+      setError('Google Maps API key is missing. Add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY before using in-app emergency navigation.')
+      setStatus('error')
+      return
+    }
 
     try {
+      await loadGoogleMaps(apiKey)
       const coords = await getCurrentLocation()
       setCurrentLocation(coords)
 
-      // Fetch real facilities from API
-      let facilities: Facility[] = []
-      try {
-        const res = await fetch(
-          `/api/facilities?lat=${coords.latitude}&lng=${coords.longitude}&hasEmergency=true&limit=5`
-        )
-        const data = await res.json()
-        facilities = (data.facilities || []).map(normalizeFacility).filter(Boolean) as Facility[]
-      } catch {
-        // API unavailable; fall back to empty list
-      }
+      const origin = { lat: coords.latitude, lng: coords.longitude }
+      const map = new google.maps.Map(mapRef.current as HTMLDivElement, {
+        center: origin,
+        zoom: 15,
+        mapTypeControl: false,
+        fullscreenControl: false,
+        streetViewControl: false,
+      })
 
-      // Attach computed distance/eta to each facility
-      const facilitiesWithDistance = facilities.map((f) => ({
-        ...f,
-        distance: calculateDistance(
-          coords.latitude,
-          coords.longitude,
-          f.latitude,
-          f.longitude
-        ),
-        eta: estimateTravelTime(
-          calculateDistance(
-            coords.latitude,
-            coords.longitude,
-            f.latitude,
-            f.longitude
-          )
-        ),
-      })).sort((a, b) => (a.distance || 0) - (b.distance || 0))
+      mapInstanceRef.current = map
+      directionsServiceRef.current = new google.maps.DirectionsService()
+      directionsRendererRef.current = new google.maps.DirectionsRenderer({
+        map,
+        suppressMarkers: false,
+        preserveViewport: false,
+      })
 
-      setNearbyFacilities(facilitiesWithDistance)
+      new google.maps.Marker({
+        position: origin,
+        map,
+        title: 'Your location',
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 9,
+          fillColor: '#0a84ff',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 3,
+        },
+      })
 
-      // Auto-select nearest emergency facility
-      const nearest = facilitiesWithDistance.find((f) => f.hasEmergency)
-      if (nearest && !destination) {
-        selectFacility(nearest)
-      }
-    } catch (error) {
-      setLocationError(
-        error instanceof Error ? error.message : 'Failed to get location'
-      )
-    } finally {
-      setIsLoadingLocation(false)
+      await findNearestCare(origin)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google Maps could not start. Call 112 immediately and try again.')
+      setStatus('error')
     }
-  }, [setCurrentLocation, destination])
-
-  // Select a facility as destination
-  const selectFacility = useCallback(
-    (facility: Facility) => {
-      setDestination(facility)
-      if (facility.distance !== undefined && facility.eta !== undefined) {
-        updateJourney(facility.eta, facility.distance, 0)
-      }
-      onFacilitySelected?.(facility)
-    },
-    [setDestination, updateJourney, onFacilitySelected]
-  )
-
-  // Start navigation
-  const startNavigation = useCallback(() => {
-    if (!destination) return
-
-    const link = getNavigationLink({
-      latitude: destination.latitude,
-      longitude: destination.longitude,
-    })
-
-    window.open(link, '_blank')
-    setIsNavigating(true)
-
-    // Simulate journey progress
-    if (destination.eta) {
-      const totalTime = destination.eta * 60 * 1000
-      const interval = 5000
-      let elapsed = 0
-
-      const progressInterval = setInterval(() => {
-        elapsed += interval
-        const progress = Math.min((elapsed / totalTime) * 100, 100)
-        const remainingEta = Math.max(
-          Math.ceil(((totalTime - elapsed) / 1000 / 60)),
-          0
-        )
-        const remainingDistance = destination.distance
-          ? Math.max(destination.distance * (1 - progress / 100), 0)
-          : 0
-
-        updateJourney(remainingEta, remainingDistance, progress)
-
-        if (progress >= 100) {
-          clearInterval(progressInterval)
-        }
-      }, interval)
-    }
-  }, [destination, updateJourney])
+  }, [findNearestCare, setCurrentLocation])
 
   useEffect(() => {
-    fetchLocation()
-  }, [fetchLocation])
+    startEmergencyMap()
+
+    return () => {
+      if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current)
+      if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current)
+    }
+  }, [startEmergencyMap])
+
+  useEffect(() => {
+    if (!destination || status !== 'active') return
+
+    const remainingSeconds = Math.max((eta ?? 0) * 60, 0)
+    const totalSeconds = elapsedSeconds + remainingSeconds
+    const progress = totalSeconds > 0 ? Math.min((elapsedSeconds / totalSeconds) * 100, 100) : 0
+    updateJourney(eta ?? 0, distance ?? 0, progress)
+  }, [destination, distance, elapsedSeconds, eta, status, updateJourney])
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="relative h-56 w-full overflow-hidden rounded-xl border border-primary/20 bg-secondary sm:h-72">
-        {isLoadingLocation ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <RefreshCw className="h-8 w-8 text-primary animate-spin" />
-            <span className="ml-2 text-muted-foreground">Finding your location...</span>
+      <div className="relative h-64 w-full overflow-hidden rounded-lg border border-primary/20 bg-muted sm:h-80">
+        <div ref={mapRef} className="h-full w-full" />
+
+        {(status === 'loading' || status === 'routing') && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/85 p-4 text-center">
+            <RefreshCw className="mb-3 h-8 w-8 animate-spin text-primary" />
+            <p className="font-semibold text-foreground">
+              {status === 'loading' ? 'Finding your location and nearest care...' : 'Starting in-app emergency route...'}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">Do not wait to call 112 if the situation is critical.</p>
           </div>
-        ) : locationError ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-            <MapPin className="h-8 w-8 text-destructive mb-2" />
-            <p className="text-sm text-destructive text-center">{locationError}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchLocation}
-              className="mt-2"
-            >
-              Try Again
-            </Button>
-          </div>
-        ) : (
-          <>
-            {currentLocation && (
-              <iframe
-                title="Emergency map"
-                src={buildOpenStreetMapUrl(
-                  destination?.latitude ?? currentLocation.latitude,
-                  destination?.longitude ?? currentLocation.longitude
-                )}
-                className="absolute inset-0 h-full w-full border-0"
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-              />
-            )}
-            <div className="absolute left-3 top-3 rounded-lg bg-background/95 px-3 py-2 text-xs shadow-sm">
-              <p className="font-semibold text-foreground">
-                {destination ? 'Nearest emergency care selected' : 'Your area'}
-              </p>
-              <p className="text-muted-foreground">
-                Tap Go Now for Google Maps directions.
-              </p>
-            </div>
-          </>
         )}
 
-        {/* Journey Progress Overlay */}
-        {destination && isNavigating && (
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/90 to-transparent p-4">
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-primary" />
-                <span className="font-medium">{eta} min</span>
+        {status === 'error' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/95 p-4 text-center">
+            <AlertTriangle className="mb-3 h-9 w-9 text-destructive" />
+            <p className="max-w-sm text-sm font-semibold text-destructive">{error}</p>
+            <Button variant="outline" size="sm" onClick={startEmergencyMap} className="mt-3">
+              Try Map Again
+            </Button>
+          </div>
+        )}
+
+        {status === 'active' && destination && (
+          <div className="absolute bottom-0 left-0 right-0 border-t bg-background/95 p-3 shadow-lg">
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div>
+                <p className="text-muted-foreground">Used</p>
+                <p className="font-semibold text-foreground">{formatElapsed(elapsedSeconds)}</p>
               </div>
-              <div className="flex items-center gap-2">
-                <Route className="h-4 w-4 text-primary" />
-                <span>{distance ? formatDistance(distance) : '--'}</span>
+              <div>
+                <p className="text-muted-foreground">Remaining</p>
+                <p className="font-semibold text-foreground">{eta ?? '--'} min</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Distance</p>
+                <p className="font-semibold text-foreground">{distance ? formatDistance(distance) : '--'}</p>
               </div>
             </div>
-            <div className="mt-2 h-1.5 bg-secondary rounded-full overflow-hidden">
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full bg-primary transition-all duration-500"
                 style={{ width: `${useEmergencyStore.getState().routeProgress}%` }}
@@ -234,71 +263,48 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
         )}
       </div>
 
-      {/* Selected Destination */}
       {destination && (
-        <Card className="p-4 border-primary/30 bg-primary/5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-foreground truncate">
-                {destination.name}
-              </h3>
-              <p className="text-sm text-muted-foreground truncate">
-                {destination.address}
-              </p>
-              <div className="flex items-center gap-4 mt-2 text-sm">
-                {eta !== null && (
-                  <span className="flex items-center gap-1 text-primary font-medium">
-                    <Clock className="h-4 w-4" />
-                    {eta} min
-                  </span>
-                )}
-                {distance !== null && (
-                  <span className="text-muted-foreground">
-                    {formatDistance(distance)}
-                  </span>
-                )}
+        <Card className="border-primary/30 bg-primary/5 p-4">
+          <div className="flex items-start gap-3">
+            <MapPin className="mt-1 h-5 w-5 shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">Journey started</p>
+              <h3 className="truncate font-semibold text-foreground">{destination.name}</h3>
+              <p className="truncate text-sm text-muted-foreground">{destination.address}</p>
+              <div className="mt-2 flex flex-wrap gap-3 text-sm">
+                <span className="flex items-center gap-1 text-primary">
+                  <Clock className="h-4 w-4" />
+                  {eta ?? '--'} min left
+                </span>
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <Route className="h-4 w-4" />
+                  {distance ? formatDistance(distance) : 'Distance updating'}
+                </span>
               </div>
             </div>
-            <Button
-              onClick={startNavigation}
-              className="gap-2 bg-primary hover:bg-primary/90"
-            >
-              <Navigation className="h-4 w-4" />
-              Go Now
-            </Button>
           </div>
         </Card>
       )}
 
-      {/* Nearby Facilities List */}
-      {!destination && nearbyFacilities.length > 0 && (
+      {nearbyFacilities.length > 1 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-muted-foreground">
-            Nearby Emergency Facilities
-          </h3>
-          {nearbyFacilities.slice(0, 3).map((facility) => (
-            <Card
+          <h3 className="text-sm font-medium text-muted-foreground">Other nearby care options</h3>
+          {nearbyFacilities.slice(1, 4).map((facility) => (
+            <button
               key={facility.id}
-              className="p-3 cursor-pointer hover:border-primary/50 transition-colors"
-              onClick={() => selectFacility(facility)}
+              type="button"
+              onClick={() => {
+                if (!currentLocation) return
+                startLiveJourney(facility, {
+                  lat: currentLocation.latitude,
+                  lng: currentLocation.longitude,
+                })
+              }}
+              className="w-full rounded-lg border bg-card p-3 text-left transition hover:border-primary/50"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-sm truncate">{facility.name}</h4>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {facility.address}
-                  </p>
-                </div>
-                <div className="flex flex-col items-end text-xs">
-                  <span className="font-medium text-primary">
-                    {facility.eta ?? '--'} min
-                  </span>
-                  <span className="text-muted-foreground">
-                    {facility.distance ? formatDistance(facility.distance) : '--'}
-                  </span>
-                </div>
-              </div>
-            </Card>
+              <p className="truncate text-sm font-semibold text-foreground">{facility.name}</p>
+              <p className="truncate text-xs text-muted-foreground">{facility.address}</p>
+            </button>
           ))}
         </div>
       )}
@@ -306,50 +312,95 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
   )
 }
 
-function normalizeFacility(facility: ApiFacility): Facility | null {
-  const latitude = facility.latitude ?? facility.location?.lat
-  const longitude = facility.longitude ?? facility.location?.lng
+function loadGoogleMaps(apiKey: string) {
+  return new Promise<void>((resolve, reject) => {
+    if (window.google?.maps?.places) {
+      resolve()
+      return
+    }
 
-  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    const existing = document.getElementById(GOOGLE_MAPS_SCRIPT_ID) as HTMLScriptElement | null
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true })
+      existing.addEventListener('error', () => reject(new Error('Google Maps failed to load. Check the Maps API key and billing setup.')), { once: true })
+      return
+    }
+
+    const script = document.createElement('script')
+    script.id = GOOGLE_MAPS_SCRIPT_ID
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`
+    script.async = true
+    script.defer = true
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Google Maps failed to load. Check the Maps API key and billing setup.'))
+    document.head.appendChild(script)
+  })
+}
+
+function searchNearbyCare(
+  places: google.maps.places.PlacesService,
+  origin: google.maps.LatLngLiteral
+) {
+  return new Promise<google.maps.places.PlaceResult[]>((resolve, reject) => {
+    places.nearbySearch(
+      {
+        location: origin,
+        rankBy: google.maps.places.RankBy.DISTANCE,
+        keyword: 'hospital clinic health centre medical centre emergency',
+      },
+      (results, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+          resolve(results)
+          return
+        }
+
+        reject(new Error('Google Maps could not find nearby healthcare facilities. Call 112 immediately.'))
+      }
+    )
+  })
+}
+
+function placeToFacility(place: google.maps.places.PlaceResult): Facility | null {
+  const lat = place.geometry?.location?.lat()
+  const lng = place.geometry?.location?.lng()
+
+  if (typeof lat !== 'number' || typeof lng !== 'number' || !place.place_id || !place.name) {
     return null
   }
 
   return {
-    id: facility.id,
-    name: facility.name,
-    type: normalizeFacilityType(facility.type),
-    address: facility.address,
-    state: facility.state ?? 'Lagos',
-    lga: facility.lga ?? '',
-    latitude,
-    longitude,
-    phone: facility.phone,
-    services: facility.services ?? [],
-    hasEmergency: Boolean(facility.hasEmergency),
-    isOpen24Hours: Boolean(facility.isOpen24Hours ?? facility.is24Hours),
-    averageRating: facility.averageRating ?? facility.rating ?? 0,
-    totalRatings: 0,
+    id: place.place_id,
+    name: place.name,
+    type: normalizeFacilityType(place.types ?? []),
+    address: place.vicinity || place.formatted_address || 'Address not available',
+    state: '',
+    lga: '',
+    latitude: lat,
+    longitude: lng,
+    services: place.types ?? [],
+    hasEmergency: true,
+    isOpen24Hours: Boolean(place.opening_hours?.open_now),
+    averageRating: place.rating ?? 0,
+    totalRatings: place.user_ratings_total ?? 0,
     isVerified: true,
   }
 }
 
-function normalizeFacilityType(type: string): Facility['type'] {
-  if (type === 'hospital') return 'general_hospital'
-  if (type === 'clinic') return 'clinic'
-  if (type === 'pharmacy') return 'pharmacy'
-  if (type === 'laboratory') return 'laboratory'
+function normalizeFacilityType(types: string[]): Facility['type'] {
+  if (types.includes('hospital')) return 'general_hospital'
+  if (types.includes('pharmacy')) return 'pharmacy'
+  if (types.includes('doctor') || types.includes('health')) return 'clinic'
   return 'emergency'
 }
 
-function buildOpenStreetMapUrl(latitude: number, longitude: number) {
-  const latPad = 0.025
-  const lngPad = 0.035
-  const bbox = [
-    longitude - lngPad,
-    latitude - latPad,
-    longitude + lngPad,
-    latitude + latPad,
-  ].join('%2C')
+function formatElapsed(seconds: number) {
+  const minutes = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${minutes}:${secs.toString().padStart(2, '0')}`
+}
 
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${latitude}%2C${longitude}`
+declare global {
+  interface Window {
+    google: typeof google
+  }
 }

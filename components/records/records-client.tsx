@@ -1,7 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, Edit, FileText, Paperclip, Plus, Trash2 } from "lucide-react";
+import {
+  CalendarDays,
+  Download,
+  Edit,
+  FileText,
+  Hospital,
+  Paperclip,
+  Plus,
+  Sparkles,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -54,6 +65,43 @@ const RECORD_TYPES: { value: HealthRecordType | "all"; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
+const RECORD_TYPE_HINTS: Record<HealthRecordType, string> = {
+  diagnosis: "Doctor's finding or condition name",
+  lab_result: "Blood test, scan, malaria, typhoid, X-ray",
+  prescription: "Medicine, dosage, or pharmacy note",
+  visit_note: "Clinic visit, symptoms, or doctor's advice",
+  immunization: "Vaccine card or immunization record",
+  surgery: "Operation, procedure, or discharge note",
+  other: "Any health information you want to keep",
+};
+
+const QUICK_TEMPLATES: { label: string; type: HealthRecordType; title: string; note: string }[] = [
+  {
+    label: "Lab result",
+    type: "lab_result",
+    title: "Lab test result",
+    note: "Add the test name, result, and what the doctor said.",
+  },
+  {
+    label: "Medicine",
+    type: "prescription",
+    title: "Prescription",
+    note: "Add medicine names exactly as written on the paper or pack.",
+  },
+  {
+    label: "Clinic visit",
+    type: "visit_note",
+    title: "Clinic visit note",
+    note: "Add the main complaint, advice given, and next step.",
+  },
+  {
+    label: "Diagnosis",
+    type: "diagnosis",
+    title: "Diagnosis",
+    note: "Add the condition name and where it was diagnosed.",
+  },
+];
+
 const emptyForm: FormState = {
   type: "visit_note",
   title: "",
@@ -77,6 +125,7 @@ export function RecordsClient() {
   const [isSaving, setIsSaving] = useState(false);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [formMessage, setFormMessage] = useState<string | null>(null);
 
   const filteredRecords = useMemo(() => {
     if (selectedType === "all") return records;
@@ -113,6 +162,7 @@ export function RecordsClient() {
   function startCreate() {
     setEditingId(null);
     setForm(emptyForm);
+    setFormMessage(null);
     setIsFormOpen(true);
   }
 
@@ -128,11 +178,20 @@ export function RecordsClient() {
       attachmentUrl: record.attachmentUrl || "",
     });
     setAttachmentFile(null);
+    setFormMessage(null);
     setIsFormOpen(true);
   }
 
   async function saveRecord(event: React.FormEvent) {
     event.preventDefault();
+    setFormMessage(null);
+
+    const validationMessage = validateRecordForm(form);
+    if (validationMessage) {
+      setFormMessage(validationMessage);
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
 
@@ -241,7 +300,7 @@ export function RecordsClient() {
     setRecords((current) => current.filter((record) => record.id !== id));
   }
 
-  function handleAttachmentChange(file: File | undefined) {
+function handleAttachmentChange(file: File | undefined) {
     if (!file) {
       setAttachmentFile(null);
       return;
@@ -251,10 +310,77 @@ export function RecordsClient() {
     setAttachmentFile(file);
   }
 
+  function applyTemplate(template: (typeof QUICK_TEMPLATES)[number]) {
+    setForm((current) => ({
+      ...current,
+      type: template.type,
+      title: current.title || template.title,
+      description: current.description || template.note,
+    }));
+    setFormMessage(null);
+    setIsFormOpen(true);
+  }
+
+  function updateTitle(title: string) {
+    setForm((current) => ({
+      ...current,
+      title,
+      type: current.title ? current.type : suggestRecordType(title),
+    }));
+  }
+
   return (
     <div className="min-h-screen bg-background px-4 py-5 pb-28 lg:px-6 lg:pb-8">
       <div className="mx-auto max-w-5xl space-y-5">
-        <section className="rounded-lg border bg-card p-5">
+        <section className="overflow-hidden rounded-lg border bg-card">
+          <div className="border-b bg-primary/5 p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">Health Records</h1>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Keep test results, prescriptions, and clinic notes in one safe place.
+                </p>
+              </div>
+              <Button onClick={startCreate} className="w-full sm:w-auto">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Record
+              </Button>
+            </div>
+          </div>
+          <div className="grid gap-3 p-5 sm:grid-cols-3">
+            <div className="rounded-md border bg-background p-3">
+              <FileText className="mb-2 h-5 w-5 text-primary" />
+              <p className="text-sm font-semibold">{records.length} saved</p>
+              <p className="text-xs text-muted-foreground">Only you can access your records.</p>
+            </div>
+            <div className="rounded-md border bg-background p-3">
+              <Upload className="mb-2 h-5 w-5 text-primary" />
+              <p className="text-sm font-semibold">PDF or image</p>
+              <p className="text-xs text-muted-foreground">Upload lab papers, prescriptions, or photos.</p>
+            </div>
+            <div className="rounded-md border bg-background p-3">
+              <Sparkles className="mb-2 h-5 w-5 text-primary" />
+              <p className="text-sm font-semibold">Simple entry</p>
+              <p className="text-xs text-muted-foreground">Use a quick start below to avoid stress.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-2 sm:grid-cols-4" aria-label="Quick record templates">
+          {QUICK_TEMPLATES.map((template) => (
+            <button
+              key={template.label}
+              type="button"
+              onClick={() => applyTemplate(template)}
+              className="rounded-lg border bg-card p-3 text-left text-sm shadow-sm transition hover:border-primary/50 hover:bg-primary/5"
+            >
+              <span className="font-semibold text-foreground">{template.label}</span>
+              <span className="mt-1 block text-xs text-muted-foreground">{RECORD_TYPE_HINTS[template.type]}</span>
+            </button>
+          ))}
+        </section>
+
+        {/* <section className="rounded-lg border bg-card p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold text-foreground">Health Records</h1>
@@ -267,7 +393,7 @@ export function RecordsClient() {
               Add Record
             </Button>
           </div>
-        </section>
+        </section> */}
 
         <section className="flex gap-2 overflow-x-auto pb-1" aria-label="Record filters">
           {RECORD_TYPES.map((type) => (
@@ -290,29 +416,64 @@ export function RecordsClient() {
         )}
 
         {isFormOpen && (
-          <Card>
+          <Card className="overflow-hidden border-primary/20">
+            <div className="border-b bg-muted/40 p-5">
+              <div className="flex items-start gap-3">
+                <div className="rounded-full bg-primary/10 p-2 text-primary">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-foreground">
+                    {editingId ? "Update health record" : "Add health record"}
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Fill only what you know. A title, date, and type are enough to save.
+                  </p>
+                </div>
+              </div>
+            </div>
             <CardContent className="p-5">
-              <form onSubmit={saveRecord} className="space-y-4">
+              <form onSubmit={saveRecord} noValidate className="space-y-5">
+                {formMessage && (
+                  <div className="rounded-md border border-primary/30 bg-primary/10 p-3 text-sm text-primary">
+                    {formMessage}
+                  </div>
+                )}
+
+                <div className="rounded-md border bg-background p-3">
+                  <p className="text-sm font-semibold">Quick help</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    If the paper is hard to understand, upload it and write a simple title like
+                    “Malaria test result” or “Medicine from clinic”.
+                  </p>
+                </div>
+
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <Label htmlFor="record-title">Title</Label>
                     <Input
                       id="record-title"
                       value={form.title}
-                      onChange={(event) => setForm({ ...form, title: event.target.value })}
+                      onChange={(event) => updateTitle(event.target.value)}
                       placeholder="Malaria test result"
-                      required
+                      aria-describedby="record-title-help"
                     />
+                    <p id="record-title-help" className="mt-1 text-xs text-muted-foreground">
+                      Use everyday words. Example: “Blood test”, “Doctor visit”, “Malaria drugs”.
+                    </p>
                   </div>
                   <div>
                     <Label htmlFor="record-date">Date</Label>
-                    <Input
-                      id="record-date"
-                      type="date"
-                      value={form.date}
-                      onChange={(event) => setForm({ ...form, date: event.target.value })}
-                      required
-                    />
+                    <div className="relative">
+                      <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="record-date"
+                        type="date"
+                        value={form.date}
+                        onChange={(event) => setForm({ ...form, date: event.target.value })}
+                        className="pl-9"
+                      />
+                    </div>
                   </div>
                   <div>
                     <Label htmlFor="record-type">Type</Label>
@@ -328,6 +489,7 @@ export function RecordsClient() {
                         </option>
                       ))}
                     </select>
+                    <p className="mt-1 text-xs text-muted-foreground">{RECORD_TYPE_HINTS[form.type]}</p>
                   </div>
                   <div>
                     <Label htmlFor="record-provider">Provider</Label>
@@ -335,19 +497,23 @@ export function RecordsClient() {
                       id="record-provider"
                       value={form.provider}
                       onChange={(event) => setForm({ ...form, provider: event.target.value })}
-                      placeholder="Doctor or provider"
+                      placeholder="Doctor, nurse, lab, or pharmacy"
                     />
                   </div>
                 </div>
 
                 <div>
                   <Label htmlFor="record-facility">Facility</Label>
-                  <Input
-                    id="record-facility"
-                    value={form.facility}
-                    onChange={(event) => setForm({ ...form, facility: event.target.value })}
-                    placeholder="Hospital, clinic, or lab"
-                  />
+                  <div className="relative">
+                    <Hospital className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="record-facility"
+                      value={form.facility}
+                      onChange={(event) => setForm({ ...form, facility: event.target.value })}
+                      placeholder="Hospital, clinic, lab, or pharmacy"
+                      className="pl-9"
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -356,21 +522,22 @@ export function RecordsClient() {
                     id="record-description"
                     value={form.description}
                     onChange={(event) => setForm({ ...form, description: event.target.value })}
-                    placeholder="Short notes about this record"
+                    placeholder="Example: Fever for 3 days. Test said malaria positive. Doctor gave medicine."
+                    className="min-h-24"
                   />
                 </div>
 
-                <div>
+                <div className="rounded-lg border border-dashed bg-muted/30 p-4">
                   <Label htmlFor="record-attachment">Attachment</Label>
                   <Input
                     id="record-attachment"
                     type="file"
                     accept="application/pdf,image/jpeg,image/png,image/webp"
                     onChange={(event) => handleAttachmentChange(event.target.files?.[0])}
-                    className="mt-1"
+                    className="mt-2 bg-background"
                   />
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Upload one PDF or image, up to 10MB.
+                    Optional. Upload one PDF or image, up to 10MB.
                   </p>
                   {(attachmentFile || form.attachmentUrl) && (
                     <div className="mt-2 flex items-center gap-2 rounded-md bg-muted p-2 text-sm">
@@ -382,7 +549,7 @@ export function RecordsClient() {
                   )}
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:justify-end">
                   <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
                     Cancel
                   </Button>
@@ -470,4 +637,42 @@ export function RecordsClient() {
       </div>
     </div>
   );
+}
+
+function validateRecordForm(form: FormState) {
+  if (!form.title.trim()) {
+    return "Please add a short title so you can find this record later.";
+  }
+
+  if (!form.date || Number.isNaN(Date.parse(form.date))) {
+    return "Please choose the date on the record or the day you visited.";
+  }
+
+  return null;
+}
+
+function suggestRecordType(title: string): HealthRecordType {
+  const text = title.toLowerCase();
+
+  if (/(lab|test|result|scan|xray|x-ray|malaria|typhoid|blood|urine)/.test(text)) {
+    return "lab_result";
+  }
+
+  if (/(drug|medicine|medication|prescription|dose|tablet|capsule|pharmacy)/.test(text)) {
+    return "prescription";
+  }
+
+  if (/(vaccine|immunization|immunisation|injection)/.test(text)) {
+    return "immunization";
+  }
+
+  if (/(surgery|operation|procedure|discharge)/.test(text)) {
+    return "surgery";
+  }
+
+  if (/(diagnosis|diagnosed|condition)/.test(text)) {
+    return "diagnosis";
+  }
+
+  return "visit_note";
 }

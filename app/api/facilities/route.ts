@@ -116,6 +116,12 @@ const FACILITIES = [
   },
 ];
 
+type FacilityResult = (typeof FACILITIES)[number] & {
+  distance?: string;
+  estimatedTime?: string;
+  distanceValue?: number;
+};
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   
@@ -127,7 +133,7 @@ export async function GET(request: Request) {
   const query = searchParams.get("query") || "";
   const limit = parseInt(searchParams.get("limit") || "20");
 
-  let facilities = [...FACILITIES];
+  let facilities: FacilityResult[] = [...FACILITIES];
 
   // Filter by type
   if (type !== "all") {

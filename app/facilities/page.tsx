@@ -318,6 +318,9 @@ export default function FacilitiesPage() {
     window.open(url, "_blank");
   };
 
+  const mapCenter = selectedFacility?.location || userLocation;
+  const hasGoogleMapsKey = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
+
   const handleCall = (facility: Facility) => {
     if (facility.phone) {
       window.location.href = `tel:${facility.phone}`;
@@ -573,7 +576,7 @@ export default function FacilitiesPage() {
               <X className="h-4 w-4" />
             </Button>
             <div id="facility-map" className="h-full w-full">
-              {userLocation && (
+              {mapCenter && (
                 <iframe
                   width="100%"
                   height="100%"
@@ -581,7 +584,11 @@ export default function FacilitiesPage() {
                   loading="lazy"
                   allowFullScreen
                   referrerPolicy="no-referrer-when-downgrade"
-                  src={`https://www.google.com/maps/embed/v1/search?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&q=${facilityType === "all" ? "hospital+pharmacy" : facilityType}&center=${userLocation.lat},${userLocation.lng}&zoom=14`}
+                  src={
+                    hasGoogleMapsKey
+                      ? `https://www.google.com/maps/embed/v1/search?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&q=${facilityType === "all" ? "hospital+pharmacy" : facilityType}&center=${mapCenter.lat},${mapCenter.lng}&zoom=14`
+                      : buildOpenStreetMapUrl(mapCenter.lat, mapCenter.lng)
+                  }
                 />
               )}
             </div>
@@ -590,4 +597,17 @@ export default function FacilitiesPage() {
       </div>
     </div>
   );
+}
+
+function buildOpenStreetMapUrl(latitude: number, longitude: number) {
+  const latPad = 0.04;
+  const lngPad = 0.05;
+  const bbox = [
+    longitude - lngPad,
+    latitude - latPad,
+    longitude + lngPad,
+    latitude + latPad,
+  ].join("%2C");
+
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${latitude}%2C${longitude}`;
 }

@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { MapPin, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFacilitiesStore } from "@/stores/facilities-store";
-import type { HealthFacility } from "@/lib/types";
+import type { Facility } from "@/lib/types";
 
 interface FacilityMapProps {
-  facilities: HealthFacility[];
+  facilities: Facility[];
 }
 
 export function FacilityMap({ facilities }: FacilityMapProps) {
@@ -92,7 +92,7 @@ export function FacilityMap({ facilities }: FacilityMapProps) {
     // Facility markers
     facilities.forEach((facility) => {
       const marker = new window.google.maps.Marker({
-        position: facility.location,
+        position: { lat: facility.latitude, lng: facility.longitude },
         map,
         icon: {
           path: window.google.maps.SymbolPath.CIRCLE,
@@ -112,20 +112,35 @@ export function FacilityMap({ facilities }: FacilityMapProps) {
 
     // Pan to selected facility
     if (selectedFacility) {
-      map.panTo(selectedFacility.location);
+      map.panTo({ lat: selectedFacility.latitude, lng: selectedFacility.longitude });
       map.setZoom(15);
     }
   }, [mapLoaded, facilities, userLocation, selectedFacility, setSelectedFacility]);
 
   if (mapError) {
+    const center = selectedFacility
+      ? { lat: selectedFacility.latitude, lng: selectedFacility.longitude }
+      : userLocation || { lat: 6.5244, lng: 3.3792 };
+
     return (
-      <div className="flex h-full flex-col items-center justify-center bg-muted p-8 text-center">
-        <MapPin className="mb-4 h-12 w-12 text-muted-foreground" />
-        <h3 className="mb-2 font-semibold text-foreground">Map Unavailable</h3>
-        <p className="mb-4 text-sm text-muted-foreground">{mapError}</p>
-        <p className="text-xs text-muted-foreground">
-          You can still browse facilities in the list view
-        </p>
+      <div className="relative h-full w-full overflow-hidden bg-muted">
+        <iframe
+          title="Facility map"
+          src={buildOpenStreetMapUrl(center.lat, center.lng)}
+          className="h-full w-full border-0"
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+        />
+        <div className="absolute left-4 top-4 max-w-xs rounded-lg border bg-card p-3 text-sm shadow-lg">
+          <div className="mb-2 flex items-center gap-2 font-semibold text-foreground">
+            <MapPin className="h-4 w-4 text-primary" />
+            Map & directions
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Showing a simple map. Select a facility from the list, then tap Navigate.
+          </p>
+          <p className="mt-2 text-[11px] text-muted-foreground">{mapError}</p>
+        </div>
       </div>
     );
   }
@@ -174,7 +189,7 @@ export function FacilityMap({ facilities }: FacilityMapProps) {
               size="sm"
               className="flex-1 gap-1"
               onClick={() => {
-                const url = `https://www.google.com/maps/dir/?api=1&destination=${selectedFacility.location.lat},${selectedFacility.location.lng}&travelmode=driving`;
+                const url = `https://www.google.com/maps/dir/?api=1&destination=${selectedFacility.latitude},${selectedFacility.longitude}&travelmode=driving`;
                 window.open(url, "_blank");
               }}
             >
@@ -186,6 +201,19 @@ export function FacilityMap({ facilities }: FacilityMapProps) {
       )}
     </div>
   );
+}
+
+function buildOpenStreetMapUrl(latitude: number, longitude: number) {
+  const latPad = 0.04;
+  const lngPad = 0.05;
+  const bbox = [
+    longitude - lngPad,
+    latitude - latPad,
+    longitude + lngPad,
+    latitude + latPad,
+  ].join("%2C");
+
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${latitude}%2C${longitude}`;
 }
 
 // Add Google Maps types

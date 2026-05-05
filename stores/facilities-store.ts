@@ -1,8 +1,10 @@
 import { create } from "zustand";
-import type { HealthFacility, FacilityType } from "@/lib/types";
+import type { Facility } from "@/lib/types";
+
+type FacilityType = Facility['type'] | "all";
 
 interface FacilityFilters {
-  type: FacilityType | "all";
+  type: FacilityType;
   is24Hours: boolean | null;
   hasEmergency: boolean | null;
   maxDistance: number | null; // in km
@@ -10,22 +12,22 @@ interface FacilityFilters {
 }
 
 interface FacilitiesStore {
-  facilities: HealthFacility[];
-  selectedFacility: HealthFacility | null;
+  facilities: Facility[];
+  selectedFacility: Facility | null;
   isLoading: boolean;
   error: string | null;
   filters: FacilityFilters;
   userLocation: { lat: number; lng: number } | null;
 
   // Actions
-  setFacilities: (facilities: HealthFacility[]) => void;
-  setSelectedFacility: (facility: HealthFacility | null) => void;
+  setFacilities: (facilities: Facility[]) => void;
+  setSelectedFacility: (facility: Facility | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setFilters: (filters: Partial<FacilityFilters>) => void;
   resetFilters: () => void;
   setUserLocation: (location: { lat: number; lng: number } | null) => void;
-  getFilteredFacilities: () => HealthFacility[];
+  getFilteredFacilities: () => Facility[];
 }
 
 const defaultFilters: FacilityFilters = {
@@ -71,7 +73,7 @@ export const useFacilitiesStore = create<FacilitiesStore>((set, get) => ({
       }
 
       // 24 hours filter
-      if (filters.is24Hours !== null && facility.is24Hours !== filters.is24Hours) {
+      if (filters.is24Hours !== null && facility.isOpen24Hours !== filters.is24Hours) {
         return false;
       }
 
@@ -85,8 +87,8 @@ export const useFacilitiesStore = create<FacilitiesStore>((set, get) => ({
         const distance = calculateDistance(
           userLocation.lat,
           userLocation.lng,
-          facility.location.lat,
-          facility.location.lng
+          facility.latitude,
+          facility.longitude
         );
         if (distance > filters.maxDistance) {
           return false;

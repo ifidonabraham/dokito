@@ -14,63 +14,29 @@ import {
 } from '@/lib/maps'
 import type { Facility } from '@/lib/types'
 
-// Sample nearby facilities (in production, this would come from API)
-const SAMPLE_FACILITIES: Facility[] = [
-  {
-    id: '1',
-    name: 'Lagos University Teaching Hospital',
-    type: 'teaching_hospital',
-    address: 'Idi-Araba, Surulere, Lagos',
-    state: 'Lagos',
-    lga: 'Surulere',
-    latitude: 6.5177,
-    longitude: 3.3516,
-    phone: '+234 1 585 2076',
-    services: ['Emergency', 'Surgery', 'ICU', 'Pediatrics'],
-    hasEmergency: true,
-    isOpen24Hours: true,
-    averageRating: 4.2,
-    totalRatings: 1250,
-    isVerified: true,
-  },
-  {
-    id: '2',
-    name: 'Lagos State Emergency Medical Services',
-    type: 'emergency',
-    address: 'Lagos Island, Lagos',
-    state: 'Lagos',
-    lga: 'Lagos Island',
-    latitude: 6.4541,
-    longitude: 3.3947,
-    phone: '767',
-    services: ['Emergency', 'Ambulance', 'Trauma'],
-    hasEmergency: true,
-    isOpen24Hours: true,
-    averageRating: 4.5,
-    totalRatings: 890,
-    isVerified: true,
-  },
-  {
-    id: '3',
-    name: 'First Consultants Medical Centre',
-    type: 'private_hospital',
-    address: 'Obalende, Lagos',
-    state: 'Lagos',
-    lga: 'Lagos Island',
-    latitude: 6.4433,
-    longitude: 3.4127,
-    phone: '+234 1 461 3080',
-    services: ['Emergency', 'Cardiology', 'Diagnostics'],
-    hasEmergency: true,
-    isOpen24Hours: true,
-    averageRating: 4.6,
-    totalRatings: 450,
-    isVerified: true,
-  },
-]
-
 interface EmergencyMapProps {
   onFacilitySelected?: (facility: Facility) => void
+}
+
+type ApiFacility = Omit<Partial<Facility>, 'distance' | 'eta'> & {
+  id: string
+  name: string
+  type: string
+  address: string
+  phone?: string
+  location?: { lat: number; lng: number }
+  latitude?: number
+  longitude?: number
+  rating?: number
+  averageRating?: number
+  is24Hours?: boolean
+  isOpen24Hours?: boolean
+  hasEmergency: boolean
+  services?: string[]
+  state?: string
+  lga?: string
+  distance?: string | number
+  estimatedTime?: string
 }
 
 export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
@@ -79,7 +45,7 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
     destination,
     eta,
     distance,
-    setLocation,
+    setCurrentLocation,
     setDestination,
     updateJourney,
   } = useEmergencyStore()
@@ -89,17 +55,29 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
   const [nearbyFacilities, setNearbyFacilities] = useState<Facility[]>([])
   const [isNavigating, setIsNavigating] = useState(false)
 
-  // Get user location
+  // Get user location and fetch nearby emergency facilities
   const fetchLocation = useCallback(async () => {
     setIsLoadingLocation(true)
     setLocationError(null)
 
     try {
       const coords = await getCurrentLocation()
-      setLocation(coords)
+      setCurrentLocation(coords)
 
-      // Calculate distances for facilities
-      const facilitiesWithDistance = SAMPLE_FACILITIES.map((f) => ({
+      // Fetch real facilities from API
+      let facilities: Facility[] = []
+      try {
+        const res = await fetch(
+          `/api/facilities?lat=${coords.latitude}&lng=${coords.longitude}&hasEmergency=true&limit=5`
+        )
+        const data = await res.json()
+        facilities = (data.facilities || []).map(normalizeFacility).filter(Boolean) as Facility[]
+      } catch {
+        // API unavailable; fall back to empty list
+      }
+
+      // Attach computed distance/eta to each facility
+      const facilitiesWithDistance = facilities.map((f) => ({
         ...f,
         distance: calculateDistance(
           coords.latitude,
@@ -131,7 +109,7 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
     } finally {
       setIsLoadingLocation(false)
     }
-  }, [setLocation, destination])
+  }, [setCurrentLocation, destination])
 
   // Select a facility as destination
   const selectFacility = useCallback(
@@ -154,14 +132,13 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
       longitude: destination.longitude,
     })
 
-    // Open in new tab/app
     window.open(link, '_blank')
     setIsNavigating(true)
 
     // Simulate journey progress
     if (destination.eta) {
-      const totalTime = destination.eta * 60 * 1000 // Convert to ms
-      const interval = 5000 // Update every 5 seconds
+      const totalTime = destination.eta * 60 * 1000
+      const interval = 5000
       let elapsed = 0
 
       const progressInterval = setInterval(() => {
@@ -184,15 +161,13 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
     }
   }, [destination, updateJourney])
 
-  // Fetch location on mount
   useEffect(() => {
     fetchLocation()
   }, [fetchLocation])
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Map Placeholder */}
-      <div className="relative w-full h-48 sm:h-64 bg-secondary rounded-xl overflow-hidden">
+      <div className="relative h-56 w-full overflow-hidden rounded-xl border border-primary/20 bg-secondary sm:h-72">
         {isLoadingLocation ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <RefreshCw className="h-8 w-8 text-primary animate-spin" />
@@ -212,19 +187,28 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
             </Button>
           </div>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary/10 to-accent/10">
-            <div className="text-center">
-              <MapPin className="h-12 w-12 text-primary mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">
-                Map view loading...
+          <>
+            {currentLocation && (
+              <iframe
+                title="Emergency map"
+                src={buildOpenStreetMapUrl(
+                  destination?.latitude ?? currentLocation.latitude,
+                  destination?.longitude ?? currentLocation.longitude
+                )}
+                className="absolute inset-0 h-full w-full border-0"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            )}
+            <div className="absolute left-3 top-3 rounded-lg bg-background/95 px-3 py-2 text-xs shadow-sm">
+              <p className="font-semibold text-foreground">
+                {destination ? 'Nearest emergency care selected' : 'Your area'}
               </p>
-              {currentLocation && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {currentLocation.latitude.toFixed(4)}, {currentLocation.longitude.toFixed(4)}
-                </p>
-              )}
+              <p className="text-muted-foreground">
+                Tap Go Now for Google Maps directions.
+              </p>
             </div>
-          </div>
+          </>
         )}
 
         {/* Journey Progress Overlay */}
@@ -307,7 +291,7 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
                 </div>
                 <div className="flex flex-col items-end text-xs">
                   <span className="font-medium text-primary">
-                    {facility.eta} min
+                    {facility.eta ?? '--'} min
                   </span>
                   <span className="text-muted-foreground">
                     {facility.distance ? formatDistance(facility.distance) : '--'}
@@ -320,4 +304,52 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
       )}
     </div>
   )
+}
+
+function normalizeFacility(facility: ApiFacility): Facility | null {
+  const latitude = facility.latitude ?? facility.location?.lat
+  const longitude = facility.longitude ?? facility.location?.lng
+
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    return null
+  }
+
+  return {
+    id: facility.id,
+    name: facility.name,
+    type: normalizeFacilityType(facility.type),
+    address: facility.address,
+    state: facility.state ?? 'Lagos',
+    lga: facility.lga ?? '',
+    latitude,
+    longitude,
+    phone: facility.phone,
+    services: facility.services ?? [],
+    hasEmergency: Boolean(facility.hasEmergency),
+    isOpen24Hours: Boolean(facility.isOpen24Hours ?? facility.is24Hours),
+    averageRating: facility.averageRating ?? facility.rating ?? 0,
+    totalRatings: 0,
+    isVerified: true,
+  }
+}
+
+function normalizeFacilityType(type: string): Facility['type'] {
+  if (type === 'hospital') return 'general_hospital'
+  if (type === 'clinic') return 'clinic'
+  if (type === 'pharmacy') return 'pharmacy'
+  if (type === 'laboratory') return 'laboratory'
+  return 'emergency'
+}
+
+function buildOpenStreetMapUrl(latitude: number, longitude: number) {
+  const latPad = 0.025
+  const lngPad = 0.035
+  const bbox = [
+    longitude - lngPad,
+    latitude - latPad,
+    longitude + lngPad,
+    latitude + latPad,
+  ].join('%2C')
+
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${latitude}%2C${longitude}`
 }

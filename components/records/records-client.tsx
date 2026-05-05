@@ -300,7 +300,7 @@ export function RecordsClient() {
     setRecords((current) => current.filter((record) => record.id !== id));
   }
 
-function handleAttachmentChange(file: File | undefined) {
+  function handleAttachmentChange(file: File | undefined) {
     if (!file) {
       setAttachmentFile(null);
       return;
@@ -361,7 +361,7 @@ function handleAttachmentChange(file: File | undefined) {
             <div className="rounded-md border bg-background p-3">
               <Sparkles className="mb-2 h-5 w-5 text-primary" />
               <p className="text-sm font-semibold">Simple entry</p>
-              <p className="text-xs text-muted-foreground">Use a quick start below to avoid stress.</p>
+              <p className="text-xs text-muted-foreground">Tap a quick start to open the form with helpful defaults.</p>
             </div>
           </div>
         </section>
@@ -374,26 +374,11 @@ function handleAttachmentChange(file: File | undefined) {
               onClick={() => applyTemplate(template)}
               className="rounded-lg border bg-card p-3 text-left text-sm shadow-sm transition hover:border-primary/50 hover:bg-primary/5"
             >
-              <span className="font-semibold text-foreground">{template.label}</span>
+              <span className="font-semibold text-foreground">Add {template.label}</span>
               <span className="mt-1 block text-xs text-muted-foreground">{RECORD_TYPE_HINTS[template.type]}</span>
             </button>
           ))}
         </section>
-
-        {/* <section className="rounded-lg border bg-card p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Health Records</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Save and manage your own health history.
-              </p>
-            </div>
-            <Button onClick={startCreate} className="w-full sm:w-auto">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Record
-            </Button>
-          </div>
-        </section> */}
 
         <section className="flex gap-2 overflow-x-auto pb-1" aria-label="Record filters">
           {RECORD_TYPES.map((type) => (

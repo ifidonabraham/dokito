@@ -134,14 +134,16 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
           return distanceA - distanceB
         }) as Facility[]
 
-      if (facilities.length === 0) {
-        setError('No nearby healthcare facility was returned by Google Maps. Call 112 now and try again.')
+      const fallbackFacilities = facilities.length > 0 ? facilities : await fetchLocalEmergencyFacilities(origin)
+
+      if (fallbackFacilities.length === 0) {
+        setError('Google Places was denied and no saved emergency facility is available nearby. Call 112 now and try again.')
         setStatus('error')
         return
       }
 
-      setNearbyFacilities(facilities)
-      startLiveJourney(facilities[0], origin)
+      setNearbyFacilities(fallbackFacilities)
+      startLiveJourney(fallbackFacilities[0], origin)
     },
     [startLiveJourney]
   )
@@ -196,10 +198,24 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
 
       await findNearestCare(origin)
     } catch (err) {
+      try {
+        const coords = await getCurrentLocation()
+        const origin = { lat: coords.latitude, lng: coords.longitude }
+        const fallbackFacilities = await fetchLocalEmergencyFacilities(origin)
+
+        if (fallbackFacilities.length > 0) {
+          setNearbyFacilities(fallbackFacilities)
+          startLiveJourney(fallbackFacilities[0], origin)
+          return
+        }
+      } catch {
+        // The original map error is more useful.
+      }
+
       setError(err instanceof Error ? err.message : 'Google Maps could not start. Call 112 immediately and try again.')
       setStatus('error')
     }
-  }, [findNearestCare, setCurrentLocation])
+  }, [findNearestCare, setCurrentLocation, startLiveJourney])
 
   useEffect(() => {
     startEmergencyMap()
@@ -498,11 +514,64 @@ function placeToFacility(place: google.maps.places.PlaceResult): Facility | null
   }
 }
 
+async function fetchLocalEmergencyFacilities(origin: google.maps.LatLngLiteral) {
+  const response = await fetch(
+    `/api/facilities?lat=${origin.lat}&lng=${origin.lng}&hasEmergency=true&limit=5`
+  )
+  const data = await response.json()
+
+  return ((data.facilities || []) as ApiFallbackFacility[])
+    .map((facility) => {
+      const latitude = facility.latitude ?? facility.location?.lat
+      const longitude = facility.longitude ?? facility.location?.lng
+      if (typeof latitude !== 'number' || typeof longitude !== 'number') return null
+
+      return {
+        id: facility.id,
+        name: facility.name,
+        type: normalizeFacilityType([facility.type]),
+        address: facility.address,
+        state: facility.state ?? '',
+        lga: facility.lga ?? '',
+        latitude,
+        longitude,
+        phone: facility.phone,
+        services: facility.services ?? [],
+        hasEmergency: Boolean(facility.hasEmergency),
+        isOpen24Hours: Boolean(facility.is24Hours),
+        averageRating: facility.rating ?? 0,
+        totalRatings: 0,
+        isVerified: true,
+        distance: getMetersBetween(origin, { lat: latitude, lng: longitude }),
+        eta: undefined,
+      } satisfies Facility
+    })
+    .filter(Boolean)
+    .sort((a, b) => (a!.distance ?? 0) - (b!.distance ?? 0)) as Facility[]
+}
+
 function normalizeFacilityType(types: string[]): Facility['type'] {
   if (types.includes('hospital')) return 'general_hospital'
   if (types.includes('pharmacy')) return 'pharmacy'
   if (types.includes('doctor') || types.includes('health')) return 'clinic'
   return 'emergency'
+}
+
+type ApiFallbackFacility = {
+  id: string
+  name: string
+  type: string
+  address: string
+  phone?: string
+  location?: { lat: number; lng: number }
+  latitude?: number
+  longitude?: number
+  rating?: number
+  is24Hours?: boolean
+  hasEmergency?: boolean
+  services?: string[]
+  state?: string
+  lga?: string
 }
 
 function formatElapsed(seconds: number) {

@@ -1,8 +1,6 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
-import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
 import { 
   Send, 
   Mic, 
@@ -57,39 +55,22 @@ type BrowserSpeechRecognitionEvent = {
 }
 
 type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
-
-// Helper to extract text from UIMessage parts
-function getMessageText(message: { parts?: Array<{ type: string; text?: string }> }): string {
-  if (!message.parts || !Array.isArray(message.parts)) return "";
-  return message.parts
-    .filter((p): p is { type: "text"; text: string } => p.type === "text" && typeof p.text === "string")
-    .map((p) => p.text)
-    .join("");
+type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
 }
 
 export function DokitaChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<typeof LANGUAGES[number]["code"]>("en");
 
   const { activateEmergency } = useEmergencyStore();
-
-  // AI SDK 6 useChat with DefaultChatTransport
-  const { messages, sendMessage, status } = useChat({
-    transport: new DefaultChatTransport({ 
-      api: "/api/dokita",
-      body: {
-        language: selectedLanguage,
-      },
-    }),
-    onError: () => {
-      setChatError("Dokita is having trouble connecting. Please try again.");
-    },
-  });
-
-  const isLoading = status === "streaming" || status === "submitted";
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -133,7 +114,7 @@ export function DokitaChat() {
   };
 
   // Handle message submission with safety check
-  const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
     const trimmedInput = input.trim();
@@ -157,8 +138,51 @@ export function DokitaChat() {
 
     // Send message using AI SDK 6 pattern
     setChatError(null);
-    sendMessage({ text: trimmedInput });
+    const userMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      text: trimmedInput,
+    };
+    setMessages((current) => [...current, userMessage]);
     setInput("");
+
+    try {
+      setIsLoading(true);
+      const response = await fetch("/api/dokita", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          language: selectedLanguage,
+          messages: [...messages, userMessage].map((message) => ({
+            role: message.role,
+            parts: [{ type: "text", text: message.text }],
+          })),
+        }),
+      });
+
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error(text || "Dokita is not responding");
+      }
+
+      const assistantText = parseDokitaResponse(text);
+      if (!assistantText.trim()) {
+        throw new Error("Dokita returned an empty response");
+      }
+
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: assistantText,
+        },
+      ]);
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "Dokita is having trouble connecting. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSuggestedPrompt = (prompt: string) => {
@@ -254,10 +278,7 @@ export function DokitaChat() {
               </div>
             )}
 
-            {messages.map((message) => {
-              const messageText = getMessageText(message);
-              
-              return (
+            {messages.map((message) => (
                 <div
                   key={message.id}
                   className={cn(
@@ -279,11 +300,10 @@ export function DokitaChat() {
                         <span className="text-xs font-medium text-primary">Dokita AI</span>
                       </div>
                     )}
-                    <p className="whitespace-pre-wrap text-sm">{messageText}</p>
+                    <p className="whitespace-pre-wrap text-sm">{message.text}</p>
                   </div>
                 </div>
-              );
-            })}
+            ))}
 
             {isLoading && (
               <div className="flex justify-start">
@@ -350,4 +370,36 @@ declare global {
     webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
     SpeechRecognition?: BrowserSpeechRecognitionConstructor;
   }
+}
+
+function parseDokitaResponse(raw: string) {
+  const textChunks: string[] = [];
+
+  for (const line of raw.split(/\r?\n/)) {
+    if (line.startsWith("0:")) {
+      try {
+        textChunks.push(JSON.parse(line.slice(2)));
+      } catch {
+        textChunks.push(line.slice(2));
+      }
+    }
+
+    if (line.startsWith("data: ")) {
+      const payload = line.slice(6);
+      if (payload === "[DONE]") continue;
+      try {
+        const parsed = JSON.parse(payload);
+        if (parsed.type === "text-delta" && typeof parsed.textDelta === "string") {
+          textChunks.push(parsed.textDelta);
+        }
+        if (parsed.type === "error" && typeof parsed.errorText === "string") {
+          textChunks.push(parsed.errorText);
+        }
+      } catch {
+        // Ignore non-JSON stream control lines.
+      }
+    }
+  }
+
+  return textChunks.join("").trim();
 }

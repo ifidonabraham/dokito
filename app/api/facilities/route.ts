@@ -3,6 +3,20 @@ import { NextResponse } from "next/server";
 // Mock database of Nigerian healthcare facilities
 const FACILITIES = [
   {
+    id: "unilag-medical-centre",
+    name: "University of Lagos Medical Centre",
+    type: "clinic",
+    address: "University of Lagos, Akoka, Lagos",
+    phone: "+234 1 293 0330",
+    location: { lat: 6.5199, lng: 3.3974 },
+    rating: 4.1,
+    is24Hours: true,
+    hasEmergency: true,
+    services: ["Emergency", "General Practice", "Student Health", "First Aid"],
+    state: "Lagos",
+    lga: "Lagos Mainland",
+  },
+  {
     id: "1",
     name: "Lagos University Teaching Hospital",
     type: "hospital",

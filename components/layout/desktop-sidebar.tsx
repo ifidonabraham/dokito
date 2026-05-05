@@ -39,9 +39,12 @@ const mainNavItems: NavItem[] = [
 ]
 
 const futureNavItems: NavItem[] = [
-  { href: '/appointments', label: 'Appointments', icon: Calendar },
-  { href: '#medication-reminders', label: 'Medication Reminders', icon: Pill },
   { href: '#chronic-tracking', label: 'Chronic Tracking', icon: Activity },
+]
+
+const careNavItems: NavItem[] = [
+  { href: '/appointments', label: 'Appointments', icon: Calendar },
+  { href: '/medications', label: 'Prescription Tracker', icon: Pill },
 ]
 
 export function DesktopSidebar() {
@@ -127,6 +130,22 @@ function SidebarContent({ pathname, onLinkClick }: { pathname: string; onLinkCli
             key={item.href}
             item={item}
             isActive={item.href === '/' ? pathname === item.href : pathname.startsWith(item.href)}
+            onClick={onLinkClick}
+          />
+        ))}
+      </div>
+
+      <Separator className="my-3" />
+
+      <div className="mb-2">
+        <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Care tracking
+        </p>
+        {careNavItems.map((item) => (
+          <NavLink
+            key={item.href}
+            item={item}
+            isActive={pathname.startsWith(item.href)}
             onClick={onLinkClick}
           />
         ))}

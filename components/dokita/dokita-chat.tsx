@@ -71,6 +71,7 @@ export function DokitaChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<typeof LANGUAGES[number]["code"]>("en");
 
   const { activateEmergency } = useEmergencyStore();
@@ -83,6 +84,9 @@ export function DokitaChat() {
         language: selectedLanguage,
       },
     }),
+    onError: () => {
+      setChatError("Dokita is having trouble connecting. Please try again.");
+    },
   });
 
   const isLoading = status === "streaming" || status === "submitted";
@@ -152,6 +156,7 @@ export function DokitaChat() {
     }
 
     // Send message using AI SDK 6 pattern
+    setChatError(null);
     sendMessage({ text: trimmedInput });
     setInput("");
   };
@@ -234,9 +239,21 @@ export function DokitaChat() {
                 This AI provides guidance only, not medical diagnosis.
               </p>
             </div>
+
+            {chatError && (
+              <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                {chatError}
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
+            {chatError && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                {chatError}
+              </div>
+            )}
+
             {messages.map((message) => {
               const messageText = getMessageText(message);
               

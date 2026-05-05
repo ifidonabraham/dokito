@@ -1,173 +1,135 @@
-import { streamText, convertToModelMessages, UIMessage } from "ai";
+import { convertToModelMessages, streamText, type UIMessage } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { buildEmergencyInfo, emergencyCheck, getEmergencyResponse } from "@/lib/safety-engine";
 
 export const maxDuration = 30;
 
+const SUPPORTED_LANGUAGES = ["en", "pcm", "yo", "ig", "ha"] as const;
+type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
+
 export async function POST(request: Request) {
   try {
-    const { messages, language = "en" }: { messages: UIMessage[]; language?: string } = await request.json();
+    const {
+      messages,
+      language = "en",
+    }: { messages: UIMessage[]; language?: string } = await request.json();
 
-    // Build system prompt based on documents
-    const systemPrompt = buildDokitaSystemPrompt(language);
+    const lang = isSupportedLanguage(language) ? language : "en";
+    const lastText = getLastUserText(messages);
 
-    // Initialize OpenRouter with API key
+    if (lastText) {
+      const safetyResult = emergencyCheck(lastText);
+      if (safetyResult.isEmergency && safetyResult.condition) {
+        const emergencyInfo = buildEmergencyInfo(safetyResult.condition, lang);
+        const stepsList = emergencyInfo.firstAidInstructions.length
+          ? `\n\nImmediate steps:\n${emergencyInfo.firstAidInstructions
+              .map((step, index) => `${index + 1}. ${step}`)
+              .join("\n")}`
+          : "";
+
+        return createUiTextStream(
+          `EMERGENCY DETECTED\n\n${getEmergencyResponse(
+            safetyResult.condition,
+            lang
+          )}${stepsList}\n\nCall: ${emergencyInfo.callNumber}\n\nThis is health information only. Call emergency services immediately.`
+        );
+      }
+    }
+
+    if (!process.env.OPENROUTER_API_KEY) {
+      return createUiTextStream(
+        "Dokita is not configured yet. Please add OPENROUTER_API_KEY in the hosted app environment."
+      );
+    }
+
     const openrouter = createOpenRouter({
       apiKey: process.env.OPENROUTER_API_KEY,
     });
 
     const result = streamText({
       model: openrouter("openai/gpt-4o-mini"),
-      system: systemPrompt,
+      system: buildDokitaSystemPrompt(lang),
       messages: await convertToModelMessages(messages),
-      temperature: 0.7,
-      maxOutputTokens: 1000,
+      temperature: 0.5,
+      maxOutputTokens: 220,
       abortSignal: request.signal,
     });
 
     return result.toUIMessageStreamResponse();
   } catch (error) {
     console.error("Dokita API Error:", error);
-    
-    // Return a friendly error message
-    const errorMessage = "Sorry, I'm having trouble connecting right now. Please try again in a moment.";
-    
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { 
-        status: 500, 
-        headers: { "Content-Type": "application/json" } 
-      }
+    return createUiTextStream(
+      "Sorry, Dokita is having trouble connecting right now. Please try again in a moment."
     );
   }
 }
 
-function buildDokitaSystemPrompt(language: string): string {
-  const languageInstructions = getLanguageInstructions(language);
-  
-  return `You are Dokita AI, a compassionate health information assistant serving people in Nigeria. You are part of Akili Health, a privacy-first healthcare support platform.
+function getLastUserText(messages: UIMessage[]) {
+  const lastUserMessage = messages.filter((message) => message.role === "user").pop();
 
-## Core Identity
-- Name: Dokita AI
-- Role: Health education, symptom intake support, triage guidance, medication education, and care navigation
-- Mission: Provide accessible, culturally sensitive healthcare guidance to Nigerians
-
-## Operating Model (ALWAYS FOLLOW IN ORDER)
-
-### LAYER 1: SAFETY OVERRIDE (ALWAYS CHECK FIRST)
-Before any normal response, scan for emergency or red-flag symptoms:
-- Chest pain, difficulty breathing, severe bleeding, unconscious, stroke symptoms
-- Suicide, self-harm, severe depression indicators
-- Pregnancy complications: heavy bleeding, severe pain, reduced fetal movement
-- Child emergencies: high fever above 39C, seizures, severe dehydration
-- Poisoning, overdose, severe burns
-
-IF EMERGENCY DETECTED:
-1. Immediately provide emergency guidance.
-2. Provide Nigeria emergency numbers: 112 (Emergency), 199 (Police/Fire)
-3. Tell the user to open maps or go to the nearest emergency-capable hospital.
-4. Give one safe first-aid instruction at a time while help is on the way.
-5. DO NOT continue with normal consultation.
-
-### LAYER 2: CLINICAL REASONING
-For non-emergency symptoms:
-1. Structure the complaint: main symptom, duration, severity, associated symptoms, age, pregnancy status, current medicines, allergies, and known conditions.
-2. Mention common possibilities only with cautious language such as "can be associated with" or "may suggest".
-3. Consider Nigeria-specific conditions (malaria, typhoid, Lassa fever, cholera, hypertension, diabetes, asthma, sickle cell complications).
-4. Route the user to the right care level: emergency now, see a doctor soon, PHC/general clinic, pharmacist advice, or home monitoring.
-
-### LAYER 3: INTAKE CONVERSATION
-Gather essential information conversationally:
-- Duration and severity of symptoms
-- Associated symptoms
-- Medical history
-- Current medications
-- Recent travel or exposures
-
-## Triage Protocol
-
-### RED FLAGS (Seek Emergency Care NOW)
-- Difficulty breathing
-- Chest pain or pressure
-- Severe abdominal pain
-- Signs of stroke (face drooping, arm weakness, speech difficulty)
-- Severe allergic reaction
-- Uncontrolled bleeding
-- Loss of consciousness
-- Pregnancy complications
-
-### YELLOW FLAGS (See Doctor Within 24-48 Hours)
-- Fever lasting >3 days
-- Persistent vomiting/diarrhea
-- Moderate pain not relieved by OTC medications
-- Worsening symptoms
-- New onset of chronic condition symptoms
-
-### GREEN FLAGS (Self-Care Appropriate)
-- Mild cold symptoms
-- Minor headache
-- Mild muscle aches
-- Minor cuts/bruises
-- Mild allergic reactions
-
-## Response Guidelines
-
-${languageInstructions}
-
-## Important Rules
-1. NEVER diagnose - only suggest possibilities and recommend professional consultation
-2. NEVER prescribe medications, dosages, antibiotics, antimalarials, or controlled drugs
-3. ALWAYS recommend seeing a healthcare provider for persistent symptoms
-4. ALWAYS consider local disease patterns (malaria endemic, etc.)
-5. Be culturally sensitive to Nigerian healthcare beliefs and practices
-6. Ask one question at a time to avoid overwhelming the user
-7. Validate the user's concerns and show empathy
-8. For chronic conditions (diabetes, hypertension), emphasize the importance of regular monitoring
-9. If unsure, err on the side of caution and recommend professional evaluation
-10. Do not claim access to records unless the user provides that information in chat
-
-## Response Format
-- Keep responses concise (2-4 paragraphs max)
-- Use simple, clear language
-- Ask follow-up questions to gather more information
-- End with clear next steps or recommendations
-- Include this disclaimer when giving health guidance: "This is health information, not medical advice. Please consult a qualified healthcare provider."
-
-Remember: You are a health GUIDE, not a replacement for medical professionals. Always encourage users to seek professional care when needed.`;
+  return (
+    lastUserMessage?.parts
+      ?.filter((part): part is { type: "text"; text: string } => part.type === "text")
+      .map((part) => part.text)
+      .join(" ") ?? ""
+  );
 }
 
-function getLanguageInstructions(language: string): string {
+function buildDokitaSystemPrompt(language: SupportedLanguage) {
+  return `You are Dokita AI for AKILI Health in Nigeria. Give health education and triage guidance only.
+
+Safety rules:
+- Never diagnose with certainty.
+- Never prescribe drugs, antibiotics, antimalarials, or dosages.
+- If symptoms suggest danger, tell the user to seek urgent care and call 112 or 199.
+- Red flags: chest pain, trouble breathing, severe bleeding, unconsciousness, stroke signs, severe allergic reaction, poisoning, overdose, severe burns, pregnancy bleeding/severe pain, seizures, self-harm.
+- For non-emergency symptoms, ask one simple follow-up question and suggest a care level: emergency, doctor soon, clinic/PHC, pharmacist, or home monitoring.
+- Consider Nigerian context: malaria, typhoid, cholera, hypertension, diabetes, asthma, sickle-cell complications.
+
+Style:
+- Be calm, brief, and low-literacy friendly.
+- Use 2 short paragraphs maximum.
+- End with a clear next step.
+- Include: "This is health information, not medical advice. Please consult a qualified healthcare provider."
+
+Language: ${getLanguageInstruction(language)}`;
+}
+
+function getLanguageInstruction(language: SupportedLanguage) {
   switch (language) {
     case "pcm":
-      return `
-Respond in Nigerian Pidgin English. Use common expressions like:
-- "How body?" instead of "How are you feeling?"
-- "Wetin dey worry you?" instead of "What symptoms are you experiencing?"
-- "E go better" for encouragement
-- Mix English with Pidgin naturally
-Example: "I understand say you dey feel pain for your belle. Make you tell me, the pain don stay for how long?"`;
-
+      return "Reply in Nigerian Pidgin. Keep medical words simple.";
     case "yo":
-      return `
-Respond in Yoruba where appropriate, mixing with English for medical terms.
-Use common Yoruba expressions and greetings.
-Example: "Mo gbọ́ pé ara rẹ kò ya daadaa. Jọ̀wọ́ sọ fún mi, báwo ni irora náà ṣe bẹ̀rẹ̀?"`;
-
+      return "Reply in simple Yoruba where possible, with English for medical terms.";
     case "ig":
-      return `
-Respond in Igbo where appropriate, mixing with English for medical terms.
-Use common Igbo expressions and greetings.
-Example: "A na m anụ na ahụ́ adịghị gị mma. Biko, gwa m, kedu ka ihe mgbu a si malite?"`;
-
+      return "Reply in simple Igbo where possible, with English for medical terms.";
     case "ha":
-      return `
-Respond in Hausa where appropriate, mixing with English for medical terms.
-Use common Hausa expressions and greetings.
-Example: "Na ji cewa ba ka da lafiya. Da fatan za ka gaya mini, yaya ciwo ya fara?"`;
-
+      return "Reply in simple Hausa where possible, with English for medical terms.";
     default:
-      return `
-Respond in clear, simple English that is easy to understand.
-Avoid complex medical jargon - explain terms when necessary.
-Be warm and conversational while maintaining professionalism.`;
+      return "Reply in clear, simple English. Avoid jargon.";
   }
+}
+
+function isSupportedLanguage(language: string): language is SupportedLanguage {
+  return SUPPORTED_LANGUAGES.includes(language as SupportedLanguage);
+}
+
+function createUiTextStream(message: string) {
+  const stream = new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder();
+      controller.enqueue(encoder.encode(`0:${JSON.stringify(message)}\n`));
+      controller.enqueue(
+        encoder.encode(`d:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n`)
+      );
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "X-Vercel-AI-Data-Stream": "v1",
+    },
+  });
 }

@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Edit, FileText, Plus, Trash2 } from "lucide-react";
+import { Download, Edit, FileText, Paperclip, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 type HealthRecordType =
   | "diagnosis"
@@ -40,6 +40,7 @@ type FormState = {
   description: string;
   provider: string;
   facility: string;
+  attachmentUrl: string;
 };
 
 const RECORD_TYPES: { value: HealthRecordType | "all"; label: string }[] = [
@@ -60,9 +61,13 @@ const emptyForm: FormState = {
   description: "",
   provider: "",
   facility: "",
+  attachmentUrl: "",
 };
 
+const ATTACHMENT_BUCKET = "health-record-attachments";
+
 export function RecordsClient() {
+  const supabase = createClient();
   const [records, setRecords] = useState<HealthRecord[]>([]);
   const [selectedType, setSelectedType] = useState<HealthRecordType | "all">("all");
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -70,6 +75,7 @@ export function RecordsClient() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const filteredRecords = useMemo(() => {
@@ -119,7 +125,9 @@ export function RecordsClient() {
       description: record.description || "",
       provider: record.provider || "",
       facility: record.facility || "",
+      attachmentUrl: record.attachmentUrl || "",
     });
+    setAttachmentFile(null);
     setIsFormOpen(true);
   }
 
@@ -135,10 +143,15 @@ export function RecordsClient() {
       description: form.description,
       provider: form.provider,
       facility: form.facility,
+      attachmentUrl: form.attachmentUrl,
       metadata: {},
     };
 
     try {
+      if (attachmentFile) {
+        payload.attachmentUrl = await uploadAttachment(attachmentFile);
+      }
+
       const response = await fetch(editingId ? `/api/health-records/${editingId}` : "/api/health-records", {
         method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -153,12 +166,65 @@ export function RecordsClient() {
       setIsFormOpen(false);
       setEditingId(null);
       setForm(emptyForm);
+      setAttachmentFile(null);
       await loadRecords(selectedType);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save health record");
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function uploadAttachment(file: File) {
+    if (!supabase) {
+      throw new Error("Supabase is not configured");
+    }
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      throw new Error("Sign in again before uploading a file");
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error("Attachment must be 10MB or smaller");
+    }
+
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error("Attachment must be a PDF, JPG, PNG, or WebP file");
+    }
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const path = `${user.id}/${crypto.randomUUID()}-${safeName}`;
+    const { error } = await supabase.storage.from(ATTACHMENT_BUCKET).upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return path;
+  }
+
+  async function openAttachment(path: string) {
+    if (!supabase) {
+      setError("Supabase is not configured");
+      return;
+    }
+
+    const { data, error } = await supabase.storage.from(ATTACHMENT_BUCKET).createSignedUrl(path, 60);
+    if (error) {
+      setError("Could not open attachment");
+      return;
+    }
+
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   }
 
   async function deleteRecord(id: string) {
@@ -173,6 +239,16 @@ export function RecordsClient() {
     }
 
     setRecords((current) => current.filter((record) => record.id !== id));
+  }
+
+  function handleAttachmentChange(file: File | undefined) {
+    if (!file) {
+      setAttachmentFile(null);
+      return;
+    }
+
+    setError(null);
+    setAttachmentFile(file);
   }
 
   return (
@@ -284,6 +360,28 @@ export function RecordsClient() {
                   />
                 </div>
 
+                <div>
+                  <Label htmlFor="record-attachment">Attachment</Label>
+                  <Input
+                    id="record-attachment"
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png,image/webp"
+                    onChange={(event) => handleAttachmentChange(event.target.files?.[0])}
+                    className="mt-1"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Upload one PDF or image, up to 10MB.
+                  </p>
+                  {(attachmentFile || form.attachmentUrl) && (
+                    <div className="mt-2 flex items-center gap-2 rounded-md bg-muted p-2 text-sm">
+                      <Paperclip className="h-4 w-4" />
+                      <span className="truncate">
+                        {attachmentFile?.name || "Existing attachment saved"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                   <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
                     Cancel
@@ -338,6 +436,17 @@ export function RecordsClient() {
                           <p className="mt-2 text-xs text-muted-foreground">
                             {[record.provider, record.facility].filter(Boolean).join(" - ")}
                           </p>
+                        )}
+                        {record.attachmentUrl && (
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="mt-2 h-auto p-0"
+                            onClick={() => openAttachment(record.attachmentUrl!)}
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            Open attachment
+                          </Button>
                         )}
                       </div>
 

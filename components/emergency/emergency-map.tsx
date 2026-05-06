@@ -38,8 +38,48 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
 
   const [status, setStatus] = useState<JourneyStatus>('loading')
   const [error, setError] = useState<string | null>(null)
+  const [routeWarning, setRouteWarning] = useState<string | null>(null)
   const [nearbyFacilities, setNearbyFacilities] = useState<Facility[]>([])
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
+
+  const drawFallbackMarkers = useCallback((origin: google.maps.LatLngLiteral, facility: Facility) => {
+    const map = mapInstanceRef.current
+    if (!map) return
+
+    new google.maps.Marker({
+      position: origin,
+      map,
+      title: 'Your location',
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 9,
+        fillColor: '#0a84ff',
+        fillOpacity: 1,
+        strokeColor: '#ffffff',
+        strokeWeight: 3,
+      },
+    })
+
+    new google.maps.Marker({
+      position: { lat: facility.latitude, lng: facility.longitude },
+      map,
+      title: facility.name,
+    })
+
+    new google.maps.Polyline({
+      path: [origin, { lat: facility.latitude, lng: facility.longitude }],
+      geodesic: true,
+      strokeColor: '#dc2626',
+      strokeOpacity: 0.85,
+      strokeWeight: 5,
+      map,
+    })
+
+    const bounds = new google.maps.LatLngBounds()
+    bounds.extend(origin)
+    bounds.extend({ lat: facility.latitude, lng: facility.longitude })
+    map.fitBounds(bounds)
+  }, [])
 
   const routeToFacility = useCallback(
     async (origin: google.maps.LatLngLiteral, facility: Facility, force = false) => {
@@ -54,30 +94,44 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
 
       setStatus((current) => (current === 'active' ? current : 'routing'))
 
-      try {
-        const result = await directionsService.route({
+      const result = await getDirections(directionsService, {
           origin,
           destination: { lat: facility.latitude, lng: facility.longitude },
           travelMode: google.maps.TravelMode.DRIVING,
           provideRouteAlternatives: false,
         })
 
-        directionsRenderer.setDirections(result)
+      if (result.status !== google.maps.DirectionsStatus.OK || !result.route) {
+        const fallbackDistance = getMetersBetween(origin, {
+          lat: facility.latitude,
+          lng: facility.longitude,
+        })
+        const fallbackEta = Math.max(Math.ceil((fallbackDistance / 1000 / 25) * 60), 1)
+        const totalSeconds = elapsedSeconds + fallbackEta * 60
+        const progress = totalSeconds > 0 ? Math.min((elapsedSeconds / totalSeconds) * 100, 100) : 0
 
-        const leg = result.routes[0]?.legs[0]
-        const remainingDistance = leg?.distance?.value ?? facility.distance ?? 0
-        const remainingEta = leg?.duration?.value ? Math.max(Math.ceil(leg.duration.value / 60), 1) : facility.eta ?? 0
+        drawFallbackMarkers(origin, facility)
+        updateJourney(fallbackEta, fallbackDistance, progress)
+        setRouteWarning(
+          `Google Directions could not draw the road route (${result.status}). Showing nearest facility and emergency estimate inside AKILI.`
+        )
+        setStatus('active')
+        return
+      }
+
+      directionsRenderer.setDirections(result.route)
+      setRouteWarning(null)
+
+      const leg = result.route.routes[0]?.legs[0]
+      const remainingDistance = leg?.distance?.value ?? facility.distance ?? 0
+      const remainingEta = leg?.duration?.value ? Math.max(Math.ceil(leg.duration.value / 60), 1) : facility.eta ?? 0
         const totalSeconds = elapsedSeconds + remainingEta * 60
         const progress = totalSeconds > 0 ? Math.min((elapsedSeconds / totalSeconds) * 100, 100) : 0
 
         updateJourney(remainingEta, remainingDistance, progress)
         setStatus('active')
-      } catch {
-        setError('The map could not calculate a route right now. Call 112 immediately and try again.')
-        setStatus('error')
-      }
     },
-    [elapsedSeconds, updateJourney]
+    [drawFallbackMarkers, elapsedSeconds, updateJourney]
   )
 
   const startLiveJourney = useCallback(
@@ -241,7 +295,7 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
         <div ref={mapRef} className="h-full w-full" />
 
         {(status === 'loading' || status === 'routing') && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/85 p-4 text-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background p-4 text-center">
             <RefreshCw className="mb-3 h-8 w-8 animate-spin text-primary" />
             <p className="font-semibold text-foreground">
               {status === 'loading' ? 'Finding your location and nearest care...' : 'Starting in-app emergency route...'}
@@ -251,7 +305,7 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
         )}
 
         {status === 'error' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/95 p-4 text-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background p-4 text-center">
             <AlertTriangle className="mb-3 h-9 w-9 text-destructive" />
             <p className="max-w-sm text-sm font-semibold text-destructive">{error}</p>
             <Button variant="outline" size="sm" onClick={startEmergencyMap} className="mt-3">
@@ -285,6 +339,12 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
           </div>
         )}
       </div>
+
+      {routeWarning && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
+          {routeWarning}
+        </div>
+      )}
 
       {destination && (
         <Card className="border-primary/30 bg-primary/5 p-4">
@@ -357,6 +417,20 @@ function loadGoogleMaps(apiKey: string) {
     script.onload = () => resolve()
     script.onerror = () => reject(new Error('Google Maps failed to load. Check the Maps API key and billing setup.'))
     document.head.appendChild(script)
+  })
+}
+
+function getDirections(
+  directionsService: google.maps.DirectionsService,
+  request: google.maps.DirectionsRequest
+) {
+  return new Promise<{ route: google.maps.DirectionsResult | null; status: google.maps.DirectionsStatus }>((resolve) => {
+    directionsService.route(request, (result, status) => {
+      resolve({
+        route: result ?? null,
+        status,
+      })
+    })
   })
 }
 

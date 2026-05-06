@@ -9,9 +9,7 @@ import {
   Hospital,
   Paperclip,
   Plus,
-  Sparkles,
   Trash2,
-  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -75,33 +73,6 @@ const RECORD_TYPE_HINTS: Record<HealthRecordType, string> = {
   other: "Any health information you want to keep",
 };
 
-const QUICK_TEMPLATES: { label: string; type: HealthRecordType; title: string; note: string }[] = [
-  {
-    label: "Lab result",
-    type: "lab_result",
-    title: "Lab test result",
-    note: "Add the test name, result, and what the doctor said.",
-  },
-  {
-    label: "Medicine",
-    type: "prescription",
-    title: "Prescription",
-    note: "Add medicine names exactly as written on the paper or pack.",
-  },
-  {
-    label: "Clinic visit",
-    type: "visit_note",
-    title: "Clinic visit note",
-    note: "Add the main complaint, advice given, and next step.",
-  },
-  {
-    label: "Diagnosis",
-    type: "diagnosis",
-    title: "Diagnosis",
-    note: "Add the condition name and where it was diagnosed.",
-  },
-];
-
 const emptyForm: FormState = {
   type: "visit_note",
   title: "",
@@ -120,7 +91,7 @@ export function RecordsClient() {
   const [selectedType, setSelectedType] = useState<HealthRecordType | "all">("all");
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
@@ -222,7 +193,7 @@ export function RecordsClient() {
         throw new Error(data.errors?.join(", ") || data.error || "Could not save health record");
       }
 
-      setIsFormOpen(false);
+      setIsFormOpen(true);
       setEditingId(null);
       setForm(emptyForm);
       setAttachmentFile(null);
@@ -310,17 +281,6 @@ export function RecordsClient() {
     setAttachmentFile(file);
   }
 
-  function applyTemplate(template: (typeof QUICK_TEMPLATES)[number]) {
-    setForm((current) => ({
-      ...current,
-      type: template.type,
-      title: current.title || template.title,
-      description: current.description || template.note,
-    }));
-    setFormMessage(null);
-    setIsFormOpen(true);
-  }
-
   function updateTitle(title: string) {
     setForm((current) => ({
       ...current,
@@ -332,52 +292,19 @@ export function RecordsClient() {
   return (
     <div className="min-h-screen bg-background px-4 py-5 pb-28 lg:px-6 lg:pb-8">
       <div className="mx-auto max-w-5xl space-y-5">
-        <section className="overflow-hidden rounded-lg border bg-card">
-          <div className="border-b bg-primary/5 p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">Health Records</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Keep test results, prescriptions, and clinic notes in one safe place.
-                </p>
-              </div>
-              <Button onClick={startCreate} className="w-full sm:w-auto">
-                <Plus className="mr-2 h-4 w-4" />
-                Add Record
-              </Button>
+        <section className="rounded-lg border bg-card p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Health Records</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Add the record here directly. Simple title, date, type, and optional attachment.
+              </p>
             </div>
+            <Button onClick={startCreate} variant="outline" className="w-full sm:w-auto">
+              <Plus className="mr-2 h-4 w-4" />
+              Clear Form
+            </Button>
           </div>
-          <div className="grid gap-3 p-5 sm:grid-cols-3">
-            <div className="rounded-md border bg-background p-3">
-              <FileText className="mb-2 h-5 w-5 text-primary" />
-              <p className="text-sm font-semibold">{records.length} saved</p>
-              <p className="text-xs text-muted-foreground">Only you can access your records.</p>
-            </div>
-            <div className="rounded-md border bg-background p-3">
-              <Upload className="mb-2 h-5 w-5 text-primary" />
-              <p className="text-sm font-semibold">PDF or image</p>
-              <p className="text-xs text-muted-foreground">Upload lab papers, prescriptions, or photos.</p>
-            </div>
-            <div className="rounded-md border bg-background p-3">
-              <Sparkles className="mb-2 h-5 w-5 text-primary" />
-              <p className="text-sm font-semibold">Simple entry</p>
-              <p className="text-xs text-muted-foreground">Tap a quick start to open the form with helpful defaults.</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-2 sm:grid-cols-4" aria-label="Quick record templates">
-          {QUICK_TEMPLATES.map((template) => (
-            <button
-              key={template.label}
-              type="button"
-              onClick={() => applyTemplate(template)}
-              className="rounded-lg border bg-card p-3 text-left text-sm shadow-sm transition hover:border-primary/50 hover:bg-primary/5"
-            >
-              <span className="font-semibold text-foreground">Add {template.label}</span>
-              <span className="mt-1 block text-xs text-muted-foreground">{RECORD_TYPE_HINTS[template.type]}</span>
-            </button>
-          ))}
         </section>
 
         <section className="flex gap-2 overflow-x-auto pb-1" aria-label="Record filters">
@@ -429,7 +356,7 @@ export function RecordsClient() {
                   <p className="text-sm font-semibold">Quick help</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     If the paper is hard to understand, upload it and write a simple title like
-                    “Malaria test result” or “Medicine from clinic”.
+                    "Malaria test result" or "Medicine from clinic".
                   </p>
                 </div>
 
@@ -444,7 +371,7 @@ export function RecordsClient() {
                       aria-describedby="record-title-help"
                     />
                     <p id="record-title-help" className="mt-1 text-xs text-muted-foreground">
-                      Use everyday words. Example: “Blood test”, “Doctor visit”, “Malaria drugs”.
+                      Use everyday words. Example: "Blood test", "Doctor visit", "Malaria drugs".
                     </p>
                   </div>
                   <div>
@@ -535,8 +462,8 @@ export function RecordsClient() {
                 </div>
 
                 <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:justify-end">
-                  <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
-                    Cancel
+                  <Button type="button" variant="outline" onClick={startCreate}>
+                    Clear
                   </Button>
                   <Button type="submit" disabled={isSaving}>
                     {isSaving ? "Saving..." : editingId ? "Save Changes" : "Save Record"}

@@ -199,7 +199,7 @@ export function EmergencyVoiceAssistant({ onUserResponse }: EmergencyVoiceAssist
         <div className="flex items-center gap-2">
           <div className={`h-3 w-3 rounded-full ${isSpeaking ? 'bg-accent animate-pulse' : isListening ? 'bg-success animate-pulse' : 'bg-muted'}`} />
           <span className="text-sm font-medium">
-            {isSpeaking ? 'Dokita is speaking...' : isListening ? 'Listening...' : 'Voice Assistant'}
+            {isSpeaking ? 'Dokito AI is speaking...' : isListening ? 'Listening...' : 'Voice Assistant'}
           </span>
         </div>
         

@@ -33,7 +33,7 @@ interface NavItem {
 const mainNavItems: NavItem[] = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/records', label: 'Health Records', icon: FileText },
-  { href: '/ask', label: 'Ask Dokita', icon: MessageCircle },
+  { href: '/ask', label: 'Dokito AI', icon: MessageCircle },
   { href: '/facilities', label: 'Facility Finder', icon: MapPin },
   { href: '/profile', label: 'Profile', icon: User },
 ]

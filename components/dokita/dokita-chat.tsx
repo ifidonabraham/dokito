@@ -162,12 +162,12 @@ export function DokitaChat() {
 
       const text = await response.text();
       if (!response.ok) {
-        throw new Error(text || "Dokita is not responding");
+        throw new Error(text || "Dokito AI is not responding");
       }
 
       const assistantText = parseDokitaResponse(text);
       if (!assistantText.trim()) {
-        throw new Error("Dokita returned an empty response");
+        throw new Error("Dokito AI returned an empty response");
       }
 
       setMessages((current) => [
@@ -179,7 +179,7 @@ export function DokitaChat() {
         },
       ]);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "Dokita is having trouble connecting. Please try again.");
+      setChatError(err instanceof Error ? err.message : "Dokito AI is having trouble connecting. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -190,15 +190,15 @@ export function DokitaChat() {
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-w-0 flex-col overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border bg-card p-4">
-        <div className="flex items-center gap-3">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-card p-3 sm:p-4">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary">
             <Stethoscope className="h-5 w-5 text-primary-foreground" />
           </div>
-          <div>
-            <h1 className="font-semibold text-foreground">Dokita AI</h1>
+          <div className="min-w-0">
+            <h1 className="truncate font-semibold text-foreground">Dokito AI</h1>
             <p className="text-xs text-muted-foreground">Your AI Health Assistant</p>
           </div>
         </div>
@@ -220,7 +220,7 @@ export function DokitaChat() {
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center">
             <div className="mb-6 rounded-full bg-primary/10 p-4">
@@ -247,10 +247,10 @@ export function DokitaChat() {
               {SUGGESTED_PROMPTS.map((prompt) => (
                 <Card
                   key={prompt}
-                  className="cursor-pointer p-3 transition-all hover:border-primary hover:shadow-sm"
+                  className="min-w-0 cursor-pointer p-3 transition-all hover:border-primary hover:shadow-sm"
                   onClick={() => handleSuggestedPrompt(prompt)}
                 >
-                  <p className="text-sm text-foreground">{prompt}</p>
+                  <p className="break-words text-sm text-foreground">{prompt}</p>
                 </Card>
               ))}
             </div>
@@ -288,7 +288,7 @@ export function DokitaChat() {
                 >
                   <div
                     className={cn(
-                      "max-w-[85%] rounded-2xl px-4 py-3 sm:max-w-[70%]",
+                      "min-w-0 max-w-[85%] rounded-2xl px-4 py-3 sm:max-w-[70%]",
                       message.role === "user"
                         ? "rounded-br-sm bg-primary text-primary-foreground"
                         : "rounded-bl-sm bg-muted text-foreground"
@@ -297,10 +297,10 @@ export function DokitaChat() {
                     {message.role === "assistant" && (
                       <div className="mb-1 flex items-center gap-2">
                         <Stethoscope className="h-4 w-4 text-primary" />
-                        <span className="text-xs font-medium text-primary">Dokita AI</span>
+                        <span className="text-xs font-medium text-primary">Dokito AI</span>
                       </div>
                     )}
-                    <p className="whitespace-pre-wrap text-sm">{message.text}</p>
+                    <p className="whitespace-pre-wrap break-words text-sm">{message.text}</p>
                   </div>
                 </div>
             ))}
@@ -326,8 +326,8 @@ export function DokitaChat() {
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-border bg-card p-4">
-        <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+      <div className="border-t border-border bg-card p-3 sm:p-4">
+        <form onSubmit={handleSendMessage} className="flex min-w-0 items-center gap-2">
           <Button
             type="button"
             variant={isListening ? "destructive" : "outline"}
@@ -346,7 +346,7 @@ export function DokitaChat() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Describe your symptoms..."
-            className="flex-1"
+            className="min-w-0 flex-1"
             disabled={isLoading}
           />
           

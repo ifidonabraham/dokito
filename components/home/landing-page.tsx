@@ -19,7 +19,7 @@ import { DokitoLogo } from "@/components/brand/dokito-logo";
 const features = [
   {
     icon: Stethoscope,
-    title: "Dokita AI Symptom Checker",
+    title: "Dokito AI Symptom Checker",
     description: "Describe your symptoms in any Nigerian language and get instant health guidance.",
   },
   {
@@ -76,7 +76,7 @@ export function LandingPage() {
               </h1>
               
               <p className="mb-8 max-w-lg text-pretty text-lg text-muted-foreground lg:text-xl">
-                Meet Dokita AI - your personal health assistant. Check symptoms, 
+                Meet Dokito AI - your personal health assistant. Check symptoms, 
                 find facilities, track medications, and access emergency help in 
                 English, Pidgin, Yoruba, Igbo, or Hausa.
               </p>
@@ -113,7 +113,7 @@ export function LandingPage() {
                     <Stethoscope className="h-5 w-5 text-primary-foreground" />
                   </div>
                   <div>
-                    <p className="font-semibold text-foreground">Dokita AI</p>
+                    <p className="font-semibold text-foreground">Dokito AI</p>
                     <p className="text-xs text-muted-foreground">Always here to help</p>
                   </div>
                 </div>

@@ -15,7 +15,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/records', label: 'Records', icon: FileText },
-  { href: '/ask', label: 'Dokita', icon: MessageCircle },
+  { href: '/ask', label: 'Dokito', icon: MessageCircle },
   { href: '/facilities', label: 'Facilities', icon: MapPin },
   { href: '/profile', label: 'Profile', icon: User },
 ]

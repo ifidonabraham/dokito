@@ -94,7 +94,7 @@ export function TopNavbar() {
             <Button asChild variant="ghost" size="sm">
               <Link href="/ask">
                 <MessageCircle className="mr-2 h-4 w-4" />
-                Dokita
+                Dokito AI
               </Link>
             </Button>
             <Button asChild variant="ghost" size="sm">

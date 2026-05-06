@@ -27,7 +27,7 @@ const quickActions = [
   {
     href: "/ask",
     icon: Stethoscope,
-    label: "Ask Dokita",
+    label: "Ask Dokito AI",
     description: "Check your symptoms",
     color: "bg-primary",
   },
@@ -224,7 +224,7 @@ export function Dashboard({ user }: DashboardProps) {
         </Card>
       </div>
 
-      {/* Ask Dokita CTA */}
+      {/* Ask Dokito AI CTA */}
       <Card className="border-primary/50 bg-gradient-to-r from-primary/10 to-transparent">
         <CardContent className="flex flex-col items-center gap-4 p-6 sm:flex-row sm:justify-between">
           <div className="flex items-center gap-4">
@@ -234,14 +234,14 @@ export function Dashboard({ user }: DashboardProps) {
             <div>
               <h3 className="font-semibold text-foreground">Feeling unwell?</h3>
               <p className="text-sm text-muted-foreground">
-                Describe your symptoms to Dokita AI and get instant health guidance.
+                Describe your symptoms to Dokito AI and get instant health guidance.
               </p>
             </div>
           </div>
           <Link href="/ask">
             <Button className="gap-2">
               <Stethoscope className="h-4 w-4" />
-              Ask Dokita AI
+              Ask Dokito AI
             </Button>
           </Link>
         </CardContent>

@@ -14,7 +14,7 @@ const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-jakart
 
 export const metadata: Metadata = {
   title: 'DOKITO | AI Health Support for Nigeria',
-  description: 'DOKITO helps Nigerians keep health records, ask Dokita for health guidance, find nearby care, and access emergency support.',
+  description: 'DOKITO helps Nigerians keep health records, ask Dokito AI for health guidance, find nearby care, and access emergency support.',
   generator: 'DOKITO',
   keywords: ['healthcare', 'Nigeria', 'AI', 'symptom checker', 'health records', 'medication reminders'],
   authors: [{ name: 'DOKITO' }],
@@ -47,8 +47,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${jakarta.variable}`}>
-      <body className="bg-background font-sans antialiased">
-        <div className="flex min-h-screen flex-col">
+      <body className="overflow-x-hidden bg-background font-sans antialiased">
+        <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden">
           {/* Top Navigation */}
           <TopNavbar />
           
@@ -57,7 +57,7 @@ export default function RootLayout({
             <DesktopSidebar />
             
             {/* Main Content */}
-            <main className="flex-1 pb-20 lg:ml-64 lg:pb-0">
+            <main className="min-w-0 flex-1 overflow-x-hidden pb-20 lg:ml-64 lg:pb-0">
               {children}
             </main>
           </div>

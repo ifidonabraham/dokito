@@ -56,7 +56,7 @@ const QUICK_ACTIONS = [
   },
   {
     icon: MessageCircle,
-    label: "Ask Dokita",
+    label: "Ask Dokito AI",
     description: "Describe symptoms",
     href: "/ask",
     color: "bg-primary/10 text-primary",
@@ -138,7 +138,7 @@ export function HomeClient({ user }: HomeClientProps) {
                 {user ? `Welcome back, ${firstName}` : "Your health support starts here"}
               </h1>
               <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                Keep your records, ask Dokita for health information, and find care nearby.
+                Keep your records, ask Dokito AI for health information, and find care nearby.
               </p>
             </div>
             {!user && (

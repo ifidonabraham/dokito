@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
     if (!process.env.OPENROUTER_API_KEY) {
       return createUiTextStream(
-        "Dokita is not configured yet. Please add OPENROUTER_API_KEY in the hosted app environment."
+        "Dokito AI is not configured yet. Please add OPENROUTER_API_KEY in the hosted app environment."
       );
     }
 
@@ -57,9 +57,9 @@ export async function POST(request: Request) {
 
     return createUiTextStream(result.text);
   } catch (error) {
-    console.error("Dokita API Error:", error);
+    console.error("Dokito AI API Error:", error);
     return createUiTextStream(
-      "Sorry, Dokita is having trouble connecting right now. Please try again in a moment."
+      "Sorry, Dokito AI is having trouble connecting right now. Please try again in a moment."
     );
   }
 }
@@ -76,7 +76,7 @@ function getLastUserText(messages: UIMessage[]) {
 }
 
 function buildDokitaSystemPrompt(language: SupportedLanguage) {
-  return `You are Dokita AI for DOKITO in Nigeria. Give health education and triage guidance only.
+  return `You are Dokito AI for DOKITO in Nigeria. Give health education and triage guidance only.
 
 Safety rules:
 - Never diagnose with certainty.

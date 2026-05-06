@@ -57,15 +57,14 @@ export function EmergencyButton({ className, variant = 'floating', children }: E
         'active:scale-95',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2',
         'emergency-pulse',
-        // Mobile: bottom right above bottom nav
-        'bottom-24 right-4 md:bottom-32 md:right-6 lg:hidden',
+        // Mobile: keep emergency visible without covering chat/forms or bottom navigation.
+        'right-3 top-16 lg:hidden',
         className
       )}
       aria-label="Emergency - Get immediate help"
     >
       <AlertTriangle className="h-5 w-5 animate-pulse" />
-      <span className="hidden sm:inline">EMERGENCY</span>
-      <span className="sm:hidden">SOS</span>
+      <span>Emergency</span>
     </button>
   )
 }

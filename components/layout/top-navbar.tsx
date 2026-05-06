@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Menu, User, LogOut, FileText, Heart, MapPin, MessageCircle } from 'lucide-react'
+import { Menu, User, LogOut, FileText, MapPin, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -15,6 +15,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useSidebarStore } from '@/stores/sidebar-store'
 import { createClient } from '@/lib/supabase/client'
+import { DokitoLogo } from '@/components/brand/dokito-logo'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 
 export function TopNavbar() {
@@ -79,9 +80,8 @@ export function TopNavbar() {
           </Button>
 
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 font-bold text-lg text-primary">
-            <Heart className="h-6 w-6 fill-primary text-primary-foreground" />
-            <span className="hidden sm:inline">AKILI Health</span>
+          <Link href="/" className="flex items-center">
+            <DokitoLogo className="text-lg" />
           </Link>
 
           <nav className="mx-auto hidden items-center gap-1 md:flex" aria-label="Primary navigation">

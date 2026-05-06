@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GoogleAuthButton } from "@/components/auth/google-auth-button";
+import { DokitoLogo } from "@/components/brand/dokito-logo";
 
 const features = [
   {
@@ -180,7 +181,7 @@ export function LandingPage() {
               Everything You Need for Better Health
             </h2>
             <p className="mx-auto max-w-2xl text-pretty text-muted-foreground">
-              Akili Health brings together AI-powered health guidance, medical records, 
+              DOKITO brings together AI-powered health guidance, medical records,
               facility finding, and emergency response in one simple platform.
             </p>
           </div>
@@ -209,7 +210,7 @@ export function LandingPage() {
             Start Your Health Journey Today
           </h2>
           <p className="mb-8 text-pretty text-primary-foreground/80">
-            Join thousands of Nigerians who trust Akili Health for their healthcare needs.
+            Join Nigerians using DOKITO for simpler healthcare support.
             It&apos;s free, secure, and available 24/7.
           </p>
           <div className="mx-auto max-w-xs">
@@ -223,11 +224,10 @@ export function LandingPage() {
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
             <div className="flex items-center gap-2">
-              <Heart className="h-6 w-6 text-primary" />
-              <span className="font-bold text-foreground">Akili Health</span>
+              <DokitoLogo className="text-base" />
             </div>
             <p className="text-sm text-muted-foreground">
-              2024 Akili Health. All rights reserved.
+              2026 DOKITO. All rights reserved.
             </p>
           </div>
         </div>

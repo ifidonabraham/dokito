@@ -13,27 +13,19 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-jakarta" });
 
 export const metadata: Metadata = {
-  title: 'Akili Health | Dokita AI',
-  description: 'Nigeria\'s Unified Healthcare Delivery & AI Platform. Your personal AI health assistant for symptom checking, medication reminders, and facility finding.',
-  generator: 'Akili Health',
+  title: 'DOKITO | AI Health Support for Nigeria',
+  description: 'DOKITO helps Nigerians keep health records, ask Dokita for health guidance, find nearby care, and access emergency support.',
+  generator: 'DOKITO',
   keywords: ['healthcare', 'Nigeria', 'AI', 'symptom checker', 'health records', 'medication reminders'],
-  authors: [{ name: 'Akili Health' }],
+  authors: [{ name: 'DOKITO' }],
   icons: {
     icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
       {
         url: '/icon.svg',
         type: 'image/svg+xml',
       },
     ],
-    apple: '/apple-icon.png',
+    apple: '/icon.svg',
   },
 }
 

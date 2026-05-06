@@ -13,7 +13,6 @@ import {
   AlertTriangle,
   Pill,
   Activity,
-  Heart,
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -22,6 +21,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { useSidebarStore } from '@/stores/sidebar-store'
 import { EmergencyButton } from '@/components/emergency/emergency-button'
+import { DokitoLogo } from '@/components/brand/dokito-logo'
 
 interface NavItem {
   href: string
@@ -84,9 +84,8 @@ export function DesktopSidebar() {
           <aside className="absolute left-0 top-0 bottom-0 w-72 bg-background border-r border-border flex flex-col shadow-xl overflow-hidden">
             {/* Header with close button */}
             <div className="flex items-center justify-between h-14 px-4 border-b border-border shrink-0">
-              <Link href="/" onClick={close} className="flex items-center gap-2 font-bold text-lg text-primary">
-                <Heart className="h-6 w-6 fill-primary text-primary-foreground" />
-                <span>AKILI Health</span>
+              <Link href="/" onClick={close} className="flex items-center">
+                <DokitoLogo className="text-lg" />
               </Link>
               <Button variant="ghost" size="icon" onClick={close} className="h-8 w-8">
                 <X className="h-5 w-5" />
@@ -197,12 +196,8 @@ function SidebarFooter() {
   return (
     <div className="border-t border-border p-4">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Heart className="h-4 w-4 text-primary" />
-        <span>AKILI Health</span>
+        <DokitoLogo className="text-sm" stacked />
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Health support for Nigeria
-      </p>
     </div>
   )
 }

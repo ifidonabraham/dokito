@@ -30,7 +30,7 @@ export function RecordsSignInRequired() {
             </div>
             <h1 className="text-2xl font-bold text-foreground">Sign in to view Health Records</h1>
             <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground">
-              Health Records are private and protected. Sign in so AKILI Health can show only your own records.
+              Health Records are private and protected. Sign in so DOKITO can show only your own records.
             </p>
             <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
               <Button onClick={handleSignIn}>Sign in with Google</Button>

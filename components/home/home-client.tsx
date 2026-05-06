@@ -133,7 +133,7 @@ export function HomeClient({ user }: HomeClientProps) {
         <section className="rounded-lg border bg-card p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">AKILI Health</p>
+              <p className="text-sm font-semibold text-emerald-600">DOKITO</p>
               <h1 className="mt-1 text-2xl font-bold text-foreground">
                 {user ? `Welcome back, ${firstName}` : "Your health support starts here"}
               </h1>

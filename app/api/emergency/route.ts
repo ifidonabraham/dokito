@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 function buildEmergencySystemPrompt(emergencyType: string, language: string): string {
   const typeSpecificInstructions = getEmergencyTypeInstructions(emergencyType);
   
-  return `You are the Emergency Response Assistant for Akili Health. This is an ACTIVE EMERGENCY situation. Your role is to provide calm, clear, life-saving guidance while help is on the way.
+  return `You are the Emergency Response Assistant for DOKITO. This is an ACTIVE EMERGENCY situation. Your role is to provide calm, clear, life-saving guidance while help is on the way.
 
 ## CRITICAL RULES
 1. Stay CALM and reassuring - the user may be panicking

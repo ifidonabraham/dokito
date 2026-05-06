@@ -113,7 +113,7 @@ export function EmergencyMap({ onFacilitySelected }: EmergencyMapProps) {
         drawFallbackMarkers(origin, facility)
         updateJourney(fallbackEta, fallbackDistance, progress)
         setRouteWarning(
-          `Google Directions could not draw the road route (${result.status}). Showing nearest facility and emergency estimate inside AKILI.`
+          `Google Directions could not draw the road route (${result.status}). Showing nearest facility and emergency estimate inside DOKITO.`
         )
         setStatus('active')
         return

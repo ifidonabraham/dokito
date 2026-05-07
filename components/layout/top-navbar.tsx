@@ -65,13 +65,13 @@ export function TopNavbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full border-b border-border bg-background">
-        <div className="flex h-14 items-center gap-3 px-4">
+      <header className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/90 backdrop-blur-xl">
+        <div className="flex h-[3.75rem] items-center gap-3 px-3 sm:px-4">
           {/* Mobile menu toggle */}
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden shrink-0 h-9 w-9"
+            className="h-9 w-9 shrink-0 rounded-xl lg:hidden"
             onClick={toggle}
             aria-label={isOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={isOpen}
@@ -80,24 +80,24 @@ export function TopNavbar() {
           </Button>
 
           {/* Logo */}
-          <Link href="/" className="flex items-center">
+          <Link href="/" className="flex min-w-0 items-center">
             <DokitoLogo className="text-lg" />
           </Link>
 
           <nav className="mx-auto hidden items-center gap-1 md:flex" aria-label="Primary navigation">
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="sm" className="rounded-xl">
               <Link href="/records">
                 <FileText className="mr-2 h-4 w-4" />
                 Records
               </Link>
             </Button>
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="sm" className="rounded-xl">
               <Link href="/ask">
                 <MessageCircle className="mr-2 h-4 w-4" />
                 Dokito AI
               </Link>
             </Button>
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="sm" className="rounded-xl">
               <Link href="/facilities">
                 <MapPin className="mr-2 h-4 w-4" />
                 Facilities
@@ -110,7 +110,7 @@ export function TopNavbar() {
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
+                  <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full border bg-card shadow-sm">
                     <Avatar className="h-8 w-8">
                       <AvatarImage src={userAvatar} alt={userName} />
                       <AvatarFallback className="bg-primary text-primary-foreground text-sm">
@@ -151,6 +151,7 @@ export function TopNavbar() {
               <Button 
                 variant="default" 
                 size="sm"
+                className="rounded-xl"
                 onClick={async () => {
                   if (!supabase) return
 

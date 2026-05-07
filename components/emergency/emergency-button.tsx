@@ -48,9 +48,9 @@ export function EmergencyButton({ className, variant = 'floating', children }: E
     <button
       onClick={handleEmergencyClick}
       className={cn(
-        'fixed z-[90] flex items-center gap-2 px-5 py-3 rounded-full',
+        'fixed z-[90] flex items-center gap-2 rounded-2xl px-4 py-3',
         'bg-destructive text-destructive-foreground',
-        'font-bold text-sm uppercase tracking-wide',
+        'text-sm font-bold',
         'shadow-lg shadow-destructive/30',
         'transition-all duration-300 ease-in-out',
         'hover:scale-105 hover:shadow-xl hover:shadow-destructive/40',

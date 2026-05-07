@@ -81,13 +81,13 @@ export function DesktopSidebar() {
             aria-hidden="true"
           />
           {/* Sidebar Panel */}
-          <aside className="absolute left-0 top-0 bottom-0 w-72 bg-background border-r border-border flex flex-col shadow-xl overflow-hidden">
+          <aside className="absolute bottom-0 left-0 top-0 flex w-72 flex-col overflow-hidden border-r border-border bg-background shadow-xl">
             {/* Header with close button */}
-            <div className="flex items-center justify-between h-14 px-4 border-b border-border shrink-0">
+            <div className="flex h-[3.75rem] shrink-0 items-center justify-between border-b border-border px-4">
               <Link href="/" onClick={close} className="flex items-center">
                 <DokitoLogo className="text-lg" />
               </Link>
-              <Button variant="ghost" size="icon" onClick={close} className="h-8 w-8">
+              <Button variant="ghost" size="icon" onClick={close} className="h-8 w-8 rounded-xl">
                 <X className="h-5 w-5" />
                 <span className="sr-only">Close menu</span>
               </Button>
@@ -102,7 +102,7 @@ export function DesktopSidebar() {
       )}
 
       {/* Desktop Sidebar - Always visible on large screens */}
-      <aside className="hidden lg:flex fixed left-0 top-14 z-30 h-[calc(100vh-3.5rem)] w-64 flex-col border-r border-border bg-background">
+      <aside className="fixed left-0 top-[3.75rem] z-30 hidden h-[calc(100vh-3.75rem)] w-64 flex-col border-r border-border/70 bg-background/95 backdrop-blur lg:flex">
         <ScrollArea className="flex-1">
           <SidebarContent pathname={pathname} />
         </ScrollArea>
@@ -117,7 +117,7 @@ function SidebarContent({ pathname, onLinkClick }: { pathname: string; onLinkCli
     <nav className="flex flex-col gap-1 px-3 py-4">
       <EmergencyButton
         variant="inline"
-        className="mb-4 w-full justify-center rounded-md bg-red-600 text-white hover:bg-red-700"
+        className="mb-4 w-full justify-center rounded-2xl bg-red-600 text-white shadow-sm shadow-red-600/20 hover:bg-red-700"
       />
 
       <div className="mb-2">
@@ -163,7 +163,7 @@ function SidebarContent({ pathname, onLinkClick }: { pathname: string; onLinkCli
 
       <Separator className="my-3" />
 
-      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-red-950 dark:border-red-950 dark:bg-red-950/30 dark:text-red-50">
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-red-950 dark:border-red-950 dark:bg-red-950/30 dark:text-red-50">
         <div className="flex items-start gap-2">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <p className="text-xs leading-5">
@@ -180,7 +180,7 @@ function DisabledNavItem({ item }: { item: NavItem }) {
 
   return (
     <div
-      className="flex h-10 w-full items-center justify-start gap-3 rounded-md px-3 text-sm text-muted-foreground opacity-70"
+      className="flex h-10 w-full items-center justify-start gap-3 rounded-xl px-3 text-sm text-muted-foreground opacity-70"
       aria-disabled="true"
     >
       <Icon className="h-4 w-4" />
@@ -210,8 +210,8 @@ function NavLink({ item, isActive, onClick }: { item: NavItem; isActive: boolean
       asChild
       variant={isActive ? 'secondary' : 'ghost'}
       className={cn(
-        'w-full justify-start gap-3 h-10',
-        isActive && 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+        'h-10 w-full justify-start gap-3 rounded-xl',
+        isActive && 'bg-primary/10 text-primary shadow-sm hover:bg-primary/15 hover:text-primary'
       )}
     >
       <Link href={item.href} onClick={onClick} aria-current={isActive ? 'page' : undefined}>

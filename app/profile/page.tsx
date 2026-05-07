@@ -13,6 +13,7 @@ import {
   Phone,
   Settings,
   Shield,
+  ShieldCheck,
   User,
   Users,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/client";
 
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -128,23 +130,31 @@ export default function ProfilePage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-[calc(100vh-7rem)] items-center justify-center">
-        <p className="text-sm text-muted-foreground">Loading profile...</p>
+      <div className="min-h-[calc(100vh-3.5rem)] bg-[linear-gradient(180deg,rgba(16,185,129,0.08),transparent_280px)] p-4 lg:p-6">
+        <div className="mx-auto max-w-5xl space-y-5">
+          <Skeleton className="h-28 rounded-2xl" />
+          <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+            <Skeleton className="h-80 rounded-2xl" />
+            <Skeleton className="h-80 rounded-2xl" />
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="flex h-[calc(100vh-7rem)] items-center justify-center">
-        <Card className="mx-4 max-w-md">
+      <div className="flex min-h-[calc(100vh-7rem)] items-center justify-center bg-[linear-gradient(180deg,rgba(14,165,233,0.08),transparent_300px)] px-4">
+        <Card className="max-w-md rounded-2xl shadow-sm">
           <CardContent className="py-8 text-center">
-            <User className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <User className="h-7 w-7" />
+            </div>
             <h2 className="mb-2 text-lg font-semibold text-foreground">Not Signed In</h2>
             <p className="mb-4 text-sm text-muted-foreground">
               Sign in to access your profile and health settings
             </p>
-            <Button onClick={() => router.push("/")}>Sign In</Button>
+            <Button onClick={() => router.push("/")} className="rounded-xl">Sign In</Button>
           </CardContent>
         </Card>
       </div>
@@ -154,34 +164,37 @@ export default function ProfilePage() {
   const displayName = formData.name || user.email?.split("@")[0] || "User";
 
   return (
-    <div className="p-4 lg:p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Profile</h1>
-        <p className="text-muted-foreground">Manage your account and preferences</p>
-      </div>
-
-      <div className="space-y-6">
-        <Card>
-          <CardContent className="py-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-2xl font-bold text-primary-foreground">
+    <div className="min-h-[calc(100vh-3.5rem)] bg-[linear-gradient(180deg,rgba(16,185,129,0.08),transparent_300px)] p-4 pb-28 lg:p-6 lg:pb-8">
+      <div className="mx-auto max-w-5xl space-y-5">
+        <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+          <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground shadow-sm">
                 {displayName.charAt(0).toUpperCase()}
               </div>
-              <div className="flex-1">
+              <div className="min-w-0">
+                <p className="mb-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Secure profile
+                </p>
                 <h2 className="text-xl font-semibold text-foreground">{displayName}</h2>
-                <p className="text-sm text-muted-foreground">{user.email}</p>
+                <p className="truncate text-sm text-muted-foreground">{user.email}</p>
               </div>
-              <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
+            </div>
+              <Button variant="outline" onClick={() => setIsEditing(!isEditing)} className="rounded-xl">
                 {isEditing ? "Cancel" : "Edit"}
               </Button>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card>
-          <CardHeader>
+        <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+          <div className="space-y-5">
+        <Card className="rounded-2xl shadow-sm">
+          <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <User className="h-5 w-5" />
+              <span className="rounded-xl bg-primary/10 p-2 text-primary">
+                <User className="h-4 w-4" />
+              </span>
               Personal Information
             </CardTitle>
           </CardHeader>
@@ -194,14 +207,14 @@ export default function ProfilePage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   disabled={!isEditing}
-                  className="mt-1"
+                  className="mt-1 rounded-xl"
                 />
               </div>
               <div>
                 <Label htmlFor="email">Email</Label>
                 <div className="relative mt-1">
                   <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input id="email" value={user.email || ""} disabled className="bg-muted pl-9" />
+                  <Input id="email" value={user.email || ""} disabled className="rounded-xl bg-muted pl-9" />
                 </div>
               </div>
               <div>
@@ -214,7 +227,7 @@ export default function ProfilePage() {
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="+234 XXX XXX XXXX"
                     disabled={!isEditing}
-                    className="pl-9"
+                    className="rounded-xl pl-9"
                   />
                 </div>
               </div>
@@ -225,7 +238,7 @@ export default function ProfilePage() {
                   value={formData.bloodType}
                   onChange={(e) => setFormData({ ...formData, bloodType: e.target.value })}
                   disabled={!isEditing}
-                  className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-foreground disabled:bg-muted"
+                  className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-foreground disabled:bg-muted"
                 >
                   <option value="">Select blood type</option>
                   {BLOOD_TYPES.map((type) => (
@@ -242,7 +255,7 @@ export default function ProfilePage() {
                   value={formData.genotype}
                   onChange={(e) => setFormData({ ...formData, genotype: e.target.value })}
                   disabled={!isEditing}
-                  className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-foreground disabled:bg-muted"
+                  className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-foreground disabled:bg-muted"
                 >
                   <option value="">Select genotype</option>
                   {["AA", "AS", "SS", "AC", "SC"].map((type) => (
@@ -263,7 +276,7 @@ export default function ProfilePage() {
                   value={formData.language}
                   onChange={(e) => setFormData({ ...formData, language: e.target.value })}
                   disabled={!isEditing}
-                  className="w-full rounded-md border border-border bg-card py-2 pl-9 pr-3 text-foreground disabled:bg-muted"
+                  className="w-full rounded-xl border border-border bg-card py-2 pl-9 pr-3 text-foreground disabled:bg-muted"
                 >
                   {LANGUAGES.map((lang) => (
                     <option key={lang.code} value={lang.code}>
@@ -275,17 +288,19 @@ export default function ProfilePage() {
             </div>
 
             {isEditing && (
-              <Button onClick={handleSave} className="w-full">
+              <Button onClick={handleSave} className="w-full rounded-xl">
                 Save Changes
               </Button>
             )}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="rounded-2xl shadow-sm">
+          <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Users className="h-5 w-5" />
+              <span className="rounded-xl bg-red-50 p-2 text-red-600 dark:bg-red-950 dark:text-red-200">
+                <Users className="h-4 w-4" />
+              </span>
               Emergency Contact
             </CardTitle>
           </CardHeader>
@@ -298,7 +313,7 @@ export default function ProfilePage() {
                 onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })}
                 placeholder="Who should we call?"
                 disabled={!isEditing}
-                className="mt-1"
+                className="mt-1 rounded-xl"
               />
             </div>
             <div>
@@ -309,22 +324,26 @@ export default function ProfilePage() {
                 onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })}
                 placeholder="+234 XXX XXX XXXX"
                 disabled={!isEditing}
-                className="mt-1"
+                className="mt-1 rounded-xl"
               />
             </div>
           </CardContent>
         </Card>
+          </div>
 
-        <Card>
-          <CardHeader>
+          <div className="space-y-5">
+        <Card className="rounded-2xl shadow-sm">
+          <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Heart className="h-5 w-5" />
+              <span className="rounded-xl bg-emerald-50 p-2 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
+                <Heart className="h-4 w-4" />
+              </span>
               Health Basics
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <button
-              className="flex w-full items-center justify-between rounded-lg p-3 text-left transition-colors hover:bg-accent"
+              className="flex w-full items-center justify-between rounded-xl border bg-white p-3 text-left transition-colors hover:border-primary/30 hover:bg-primary/5 dark:bg-background"
               onClick={() => router.push("/records")}
             >
               <div className="flex items-center gap-3">
@@ -339,11 +358,13 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-2xl shadow-sm">
           <CardContent className="py-4">
-            <div className="flex w-full items-center justify-between rounded-lg p-3 text-left">
+            <div className="flex w-full items-center justify-between rounded-xl p-3 text-left">
               <div className="flex items-center gap-3">
-                <Shield className="h-5 w-5 text-primary" />
+                <span className="rounded-xl bg-primary/10 p-2 text-primary">
+                  <Shield className="h-4 w-4" />
+                </span>
                 <div>
                   <p className="font-medium text-foreground">Privacy & Security</p>
                   <p className="text-sm text-muted-foreground">Your profile is protected by Supabase auth and row-level security</p>
@@ -351,9 +372,11 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <div className="flex w-full items-center justify-between rounded-lg p-3 text-left">
+            <div className="flex w-full items-center justify-between rounded-xl p-3 text-left">
               <div className="flex items-center gap-3">
-                <Settings className="h-5 w-5 text-muted-foreground" />
+                <span className="rounded-xl bg-muted p-2 text-muted-foreground">
+                  <Settings className="h-4 w-4" />
+                </span>
                 <div>
                   <p className="font-medium text-foreground">Medication reminders and chronic tracking</p>
                   <p className="text-sm text-muted-foreground">Coming later when backend support is available</p>
@@ -365,12 +388,14 @@ export default function ProfilePage() {
 
         <Button
           variant="outline"
-          className="w-full gap-2 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+          className="w-full gap-2 rounded-xl border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
           onClick={handleLogout}
         >
           <LogOut className="h-4 w-4" />
           Sign Out
         </Button>
+          </div>
+        </div>
       </div>
     </div>
   );

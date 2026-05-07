@@ -8,7 +8,15 @@ export default async function RecordsPage() {
     return <RecordsSignInRequired />;
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
+  let user = null;
+
+  try {
+    const response = await supabase.auth.getUser();
+    user = response.data.user;
+  } catch (error) {
+    console.error("Failed to load Supabase user on records page:", error);
+    return <RecordsSignInRequired />;
+  }
 
   if (!user) {
     return <RecordsSignInRequired />;

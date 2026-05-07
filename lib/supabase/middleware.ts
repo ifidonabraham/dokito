@@ -34,8 +34,12 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // Refreshing the auth token
-  await supabase.auth.getUser()
+  // Refreshing the auth token should never make the whole app fail to render.
+  try {
+    await supabase.auth.getUser()
+  } catch (error) {
+    console.error('Supabase auth refresh failed in middleware:', error)
+  }
 
   return supabaseResponse
 }

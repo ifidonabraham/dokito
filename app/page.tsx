@@ -7,7 +7,12 @@ export default async function HomePage() {
     return <HomeClient user={null} />;
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
 
-  return <HomeClient user={user} />;
+    return <HomeClient user={user} />;
+  } catch (error) {
+    console.error("Failed to load Supabase user on home page:", error);
+    return <HomeClient user={null} />;
+  }
 }

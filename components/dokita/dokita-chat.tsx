@@ -132,6 +132,20 @@ export function DokitaChat() {
     // Check for emergency keywords using safety engine
     const emergencyResult = emergencyCheck(trimmedInput);
     if (emergencyResult.isEmergency) {
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "user",
+          text: trimmedInput,
+        },
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: "This may be urgent. I am opening Emergency Mode now. Call 112 immediately if there is chest pain, breathing trouble, heavy bleeding, loss of consciousness, stroke signs, severe injury, or any life-threatening symptom. This is health information only and not a diagnosis.",
+        },
+      ]);
+      setInput("");
       activateEmergency();
       return;
     }

@@ -428,7 +428,7 @@ function getDirections(
     directionsService.route(request, (result, status) => {
       resolve({
         route: result ?? null,
-        status,
+        status: status as google.maps.DirectionsStatus,
       })
     })
   })

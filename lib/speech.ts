@@ -133,15 +133,38 @@ export function isSpeaking(): boolean {
   return synthesis?.speaking ?? false
 }
 
+type BrowserSpeechRecognitionErrorEvent = Event & { error?: string }
+type BrowserSpeechRecognitionEvent = Event & {
+  results: {
+    length: number
+    [index: number]: {
+      isFinal: boolean
+      [index: number]: { transcript: string }
+    }
+  }
+}
+type BrowserSpeechRecognition = {
+  continuous: boolean
+  interimResults: boolean
+  maxAlternatives: number
+  lang: string
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null
+  onend: (() => void) | null
+  onerror: ((event: BrowserSpeechRecognitionErrorEvent) => void) | null
+  start: () => void
+  stop: () => void
+  abort: () => void
+}
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition
+
 // Speech Recognition wrapper
 export class SpeechRecognizer {
-  private recognition: SpeechRecognition | null = null
+  private recognition: BrowserSpeechRecognition | null = null
   private isListening: boolean = false
 
   constructor() {
     if (isSpeechRecognitionSupported()) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      const SpeechRecognition = getSpeechRecognitionConstructor()
       this.recognition = new SpeechRecognition()
       this.recognition.continuous = false
       this.recognition.interimResults = true
@@ -157,7 +180,7 @@ export class SpeechRecognizer {
   start(callbacks: {
     onResult?: (text: string, isFinal: boolean) => void
     onEnd?: () => void
-    onError?: (error: SpeechRecognitionErrorEvent) => void
+    onError?: (error: BrowserSpeechRecognitionErrorEvent) => void
   }): boolean {
     if (!this.recognition || this.isListening) return false
 
@@ -203,6 +226,15 @@ export class SpeechRecognizer {
   get listening(): boolean {
     return this.isListening
   }
+}
+
+function getSpeechRecognitionConstructor(): BrowserSpeechRecognitionConstructor {
+  const speechWindow = window as Window & {
+    SpeechRecognition?: BrowserSpeechRecognitionConstructor
+    webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor
+  }
+
+  return speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition as BrowserSpeechRecognitionConstructor
 }
 
 // Create singleton recognizer instance

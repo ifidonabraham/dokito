@@ -1,9 +1,45 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
-// Mock database of Nigerian healthcare facilities
-const FACILITIES = [
+type FacilityRow = {
+  id: string;
+  name: string;
+  type: string;
+  address: string;
+  phone: string | null;
+  latitude: number;
+  longitude: number;
+  rating: number | null;
+  is_24_hours: boolean;
+  has_emergency: boolean;
+  services: string[] | null;
+  state: string | null;
+  lga: string | null;
+  is_sample_data?: boolean;
+};
+
+type FacilityResult = {
+  id: string;
+  name: string;
+  type: string;
+  address: string;
+  phone?: string;
+  location: { lat: number; lng: number };
+  rating?: number;
+  is24Hours: boolean;
+  hasEmergency: boolean;
+  services: string[];
+  state?: string;
+  lga?: string;
+  distance?: string;
+  estimatedTime?: string;
+  distanceValue?: number;
+  isSampleData?: boolean;
+};
+
+const SAMPLE_FACILITIES: FacilityResult[] = [
   {
-    id: "unilag-medical-centre",
+    id: "sample-unilag-medical-centre",
     name: "University of Lagos Medical Centre",
     type: "clinic",
     address: "University of Lagos, Akoka, Lagos",
@@ -15,11 +51,12 @@ const FACILITIES = [
     services: ["Emergency", "General Practice", "Student Health", "First Aid"],
     state: "Lagos",
     lga: "Lagos Mainland",
+    isSampleData: true,
   },
   {
-    id: "1",
+    id: "sample-luth",
     name: "Lagos University Teaching Hospital",
-    type: "hospital",
+    type: "teaching_hospital",
     address: "Idi-Araba, Lagos",
     phone: "+234 1 234 5678",
     location: { lat: 6.5166, lng: 3.3584 },
@@ -29,12 +66,13 @@ const FACILITIES = [
     services: ["Emergency", "Surgery", "Pediatrics", "Maternity", "ICU", "Cardiology"],
     state: "Lagos",
     lga: "Lagos Mainland",
+    isSampleData: true,
   },
   {
-    id: "2",
+    id: "sample-reddington",
     name: "Reddington Hospital",
-    type: "hospital",
-    address: "12, Idowu Martins Street, Victoria Island",
+    type: "private_hospital",
+    address: "12, Idowu Martins Street, Victoria Island, Lagos",
     phone: "+234 1 280 7100",
     location: { lat: 6.4281, lng: 3.4219 },
     rating: 4.5,
@@ -43,179 +81,141 @@ const FACILITIES = [
     services: ["Emergency", "Diagnostics", "Surgery", "ICU", "Oncology"],
     state: "Lagos",
     lga: "Eti-Osa",
-  },
-  {
-    id: "3",
-    name: "HealthPlus Pharmacy",
-    type: "pharmacy",
-    address: "Lekki Phase 1, Lagos",
-    phone: "+234 812 345 6789",
-    location: { lat: 6.441, lng: 3.4765 },
-    rating: 4.0,
-    is24Hours: false,
-    hasEmergency: false,
-    services: ["Prescriptions", "OTC Drugs", "Health Products", "Consultations"],
-    state: "Lagos",
-    lga: "Eti-Osa",
-  },
-  {
-    id: "4",
-    name: "MedPlus Pharmacy",
-    type: "pharmacy",
-    address: "Allen Avenue, Ikeja",
-    phone: "+234 809 876 5432",
-    location: { lat: 6.5975, lng: 3.3463 },
-    rating: 4.3,
-    is24Hours: true,
-    hasEmergency: false,
-    services: ["Prescriptions", "24hr Service", "Delivery", "Vaccinations"],
-    state: "Lagos",
-    lga: "Ikeja",
-  },
-  {
-    id: "5",
-    name: "St. Nicholas Hospital",
-    type: "hospital",
-    address: "57 Campbell Street, Lagos Island",
-    phone: "+234 1 263 0091",
-    location: { lat: 6.4531, lng: 3.3958 },
-    rating: 4.4,
-    is24Hours: true,
-    hasEmergency: true,
-    services: ["Emergency", "Cardiology", "Orthopedics", "Dialysis", "Maternity"],
-    state: "Lagos",
-    lga: "Lagos Island",
-  },
-  {
-    id: "6",
-    name: "First Consultants Medical Centre",
-    type: "clinic",
-    address: "Opebi Road, Ikeja",
-    phone: "+234 1 774 5030",
-    location: { lat: 6.5891, lng: 3.3569 },
-    rating: 4.1,
-    is24Hours: false,
-    hasEmergency: false,
-    services: ["General Practice", "Lab Tests", "Vaccinations", "Consultations"],
-    state: "Lagos",
-    lga: "Ikeja",
-  },
-  {
-    id: "7",
-    name: "National Hospital Abuja",
-    type: "hospital",
-    address: "Plot 132 Central District, Abuja",
-    phone: "+234 9 234 5678",
-    location: { lat: 9.0579, lng: 7.4951 },
-    rating: 4.3,
-    is24Hours: true,
-    hasEmergency: true,
-    services: ["Emergency", "Surgery", "Pediatrics", "Oncology", "Neurology"],
-    state: "FCT",
-    lga: "Municipal Area Council",
-  },
-  {
-    id: "8",
-    name: "University of Nigeria Teaching Hospital",
-    type: "hospital",
-    address: "Ituku-Ozalla, Enugu",
-    phone: "+234 42 456 789",
-    location: { lat: 6.4314, lng: 7.4989 },
-    rating: 4.0,
-    is24Hours: true,
-    hasEmergency: true,
-    services: ["Emergency", "Surgery", "Maternity", "Pediatrics", "Psychiatry"],
-    state: "Enugu",
-    lga: "Enugu South",
+    isSampleData: true,
   },
 ];
 
-type FacilityResult = (typeof FACILITIES)[number] & {
-  distance?: string;
-  estimatedTime?: string;
-  distanceValue?: number;
-};
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  
   const lat = parseFloat(searchParams.get("lat") || "0");
   const lng = parseFloat(searchParams.get("lng") || "0");
   const type = searchParams.get("type") || "all";
   const is24Hours = searchParams.get("is24Hours");
   const hasEmergency = searchParams.get("hasEmergency");
   const query = searchParams.get("query") || "";
-  const limit = parseInt(searchParams.get("limit") || "20");
+  const limit = Math.min(parseInt(searchParams.get("limit") || "20", 10), 100);
 
-  let facilities: FacilityResult[] = [...FACILITIES];
+  let facilities = await loadFacilitiesFromSupabase();
+  let source: "supabase" | "sample" = "supabase";
 
-  // Filter by type
-  if (type !== "all") {
-    facilities = facilities.filter((f) => f.type === type);
+  if (facilities.length === 0) {
+    facilities = SAMPLE_FACILITIES;
+    source = "sample";
   }
 
-  // Filter by 24 hours
-  if (is24Hours === "true") {
-    facilities = facilities.filter((f) => f.is24Hours);
-  }
+  facilities = applyFilters(facilities, { type, is24Hours, hasEmergency, query });
 
-  // Filter by emergency
-  if (hasEmergency === "true") {
-    facilities = facilities.filter((f) => f.hasEmergency);
-  }
-
-  // Search filter
-  if (query) {
-    const q = query.toLowerCase();
-    facilities = facilities.filter(
-      (f) =>
-        f.name.toLowerCase().includes(q) ||
-        f.address.toLowerCase().includes(q) ||
-        f.services.some((s) => s.toLowerCase().includes(q))
-    );
-  }
-
-  // Calculate distance if coordinates provided
   if (lat && lng) {
-    facilities = facilities.map((f) => {
-      const distance = calculateDistance(lat, lng, f.location.lat, f.location.lng);
-      const estimatedTime = Math.ceil(distance * 3); // Rough estimate: 3 min per km
-      return {
-        ...f,
-        distance: `${distance.toFixed(1)} km`,
-        estimatedTime: `${estimatedTime} mins`,
-        distanceValue: distance,
-      };
-    });
-
-    // Sort by distance
-    facilities.sort((a, b) => (a.distanceValue || 0) - (b.distanceValue || 0));
+    facilities = facilities
+      .map((facility) => addDistance(facility, lat, lng))
+      .sort((a, b) => (a.distanceValue || 0) - (b.distanceValue || 0));
   }
 
   return NextResponse.json({
     facilities: facilities.slice(0, limit),
     total: facilities.length,
+    source,
+    sampleData: source === "sample" || facilities.some((facility) => facility.isSampleData),
   });
 }
 
-// Haversine formula to calculate distance between two points
-function calculateDistance(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number
-): number {
-  const R = 6371; // Earth's radius in kilometers
+async function loadFacilitiesFromSupabase() {
+  try {
+    const supabase = await createClient();
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
+      .from("facilities")
+      .select("id, name, type, address, phone, latitude, longitude, rating, is_24_hours, has_emergency, services, state, lga, is_sample_data")
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.error("Could not load facilities from Supabase:", error.message);
+      return [];
+    }
+
+    return (data || []).map(toFacilityResult);
+  } catch (error) {
+    console.error("Facilities API Supabase fetch failed:", error);
+    return [];
+  }
+}
+
+function toFacilityResult(row: FacilityRow): FacilityResult {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    address: row.address,
+    phone: row.phone || undefined,
+    location: { lat: Number(row.latitude), lng: Number(row.longitude) },
+    rating: row.rating ? Number(row.rating) : undefined,
+    is24Hours: row.is_24_hours,
+    hasEmergency: row.has_emergency,
+    services: row.services || [],
+    state: row.state || undefined,
+    lga: row.lga || undefined,
+    isSampleData: Boolean(row.is_sample_data),
+  };
+}
+
+function applyFilters(
+  facilities: FacilityResult[],
+  filters: { type: string; is24Hours: string | null; hasEmergency: string | null; query: string }
+) {
+  let result = [...facilities];
+
+  if (filters.type !== "all") {
+    result = result.filter((facility) => normalizeTypeForFilter(facility.type) === filters.type);
+  }
+
+  if (filters.is24Hours === "true") {
+    result = result.filter((facility) => facility.is24Hours);
+  }
+
+  if (filters.hasEmergency === "true") {
+    result = result.filter((facility) => facility.hasEmergency);
+  }
+
+  if (filters.query) {
+    const query = filters.query.toLowerCase();
+    result = result.filter(
+      (facility) =>
+        facility.name.toLowerCase().includes(query) ||
+        facility.address.toLowerCase().includes(query) ||
+        facility.services.some((service) => service.toLowerCase().includes(query))
+    );
+  }
+
+  return result;
+}
+
+function normalizeTypeForFilter(type: string) {
+  if (type === "teaching_hospital" || type === "private_hospital") return "hospital";
+  return type;
+}
+
+function addDistance(facility: FacilityResult, lat: number, lng: number): FacilityResult {
+  const distance = calculateDistance(lat, lng, facility.location.lat, facility.location.lng);
+  const estimatedTime = Math.max(Math.ceil(distance * 3), 1);
+
+  return {
+    ...facility,
+    distance: `${distance.toFixed(1)} km`,
+    estimatedTime: `${estimatedTime} mins`,
+    distanceValue: distance,
+  };
+}
+
+function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const radius = 6371;
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  return radius * c;
 }
 
 function toRad(deg: number): number {

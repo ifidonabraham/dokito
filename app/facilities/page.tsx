@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 interface Facility {
   id: string;
   name: string;
-  type: "hospital" | "pharmacy" | "clinic";
+  type: string;
   address: string;
   phone?: string;
   location: { lat: number; lng: number };
@@ -35,6 +35,7 @@ interface Facility {
   distance?: string;
   estimatedTime?: string;
   placeId: string;
+  isSampleData?: boolean;
 }
 
 type FacilityType = "all" | "hospital" | "pharmacy" | "clinic";
@@ -60,6 +61,7 @@ export default function FacilitiesPage() {
   const [is24Hours, setIs24Hours] = useState(false);
   const [mapsError, setMapsError] = useState<string | null>(null);
   const [routeFacility, setRouteFacility] = useState<Facility | null>(null);
+  const [isSampleData, setIsSampleData] = useState(false);
 
   // Load Google Maps script
   useEffect(() => {
@@ -177,7 +179,7 @@ export default function FacilitiesPage() {
     const fallbackFacilities: Facility[] = (data.facilities || []).map((facility: {
       id: string;
       name: string;
-      type: "hospital" | "pharmacy" | "clinic";
+      type: string;
       address: string;
       phone?: string;
       location: { lat: number; lng: number };
@@ -185,6 +187,7 @@ export default function FacilitiesPage() {
       is24Hours?: boolean;
       distance?: string;
       estimatedTime?: string;
+      isSampleData?: boolean;
     }) => ({
       id: facility.id,
       name: facility.name,
@@ -197,8 +200,10 @@ export default function FacilitiesPage() {
       distance: facility.distance,
       estimatedTime: facility.estimatedTime,
       placeId: facility.id,
+      isSampleData: facility.isSampleData,
     }));
 
+    setIsSampleData(Boolean(data.sampleData));
     setFacilities(fallbackFacilities);
     setIsLoading(false);
   }, []);
@@ -222,6 +227,7 @@ export default function FacilitiesPage() {
 
     placesService.textSearch(request, (results, status) => {
       if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+        setIsSampleData(false);
         const facilitiesData: Facility[] = results.map((place) => {
           // Calculate distance
           const distance = calculateDistance(
@@ -269,7 +275,9 @@ export default function FacilitiesPage() {
 
         setFacilities(facilitiesData);
       } else {
-        setFacilities([]);
+        setMapsError(`Google Places returned ${status}. Showing saved facility results instead.`);
+        searchFallbackFacilities(userLocation, type);
+        return;
       }
       setIsLoading(false);
     });
@@ -450,6 +458,12 @@ export default function FacilitiesPage() {
           {mapsError && !isLoading && (
             <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
               {mapsError}. Showing saved facility results instead.
+            </div>
+          )}
+
+          {isSampleData && !isLoading && (
+            <div className="mb-3 rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 text-sm text-sky-800 dark:text-sky-300">
+              Sample facility data is loaded from Supabase seed rows. Replace it with verified facility data when available.
             </div>
           )}
 

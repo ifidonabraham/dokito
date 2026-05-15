@@ -12,6 +12,7 @@ interface HealthStore {
   medications: Medication[]
   allergies: Allergy[]
   chronicPrograms: ChronicProgram[]
+  appointments: Array<{ id: string; doctorName: string; dateTime: string }>
   
   // Loading states
   isLoading: boolean
@@ -24,14 +25,22 @@ interface HealthStore {
   
   setVitals: (vitals: Vital[]) => void
   addVital: (vital: Vital) => void
+  addVitalRecord: (vital: {
+    bloodPressure?: { systolic: number; diastolic: number }
+    heartRate?: number
+    bloodSugar?: number
+    temperature?: number
+    weight?: number
+    notes?: string
+  }) => void
   
   setMedications: (medications: Medication[]) => void
-  addMedication: (medication: Medication) => void
+  addMedication: (medication: Partial<Medication> & Pick<Medication, 'name' | 'dosage' | 'frequency'> & { times?: string[]; instructions?: string }) => void
   updateMedication: (id: string, updates: Partial<Medication>) => void
   deleteMedication: (id: string) => void
   
   setAllergies: (allergies: Allergy[]) => void
-  addAllergy: (allergy: Allergy) => void
+  addAllergy: (allergy: Partial<Allergy> & Pick<Allergy, 'allergen' | 'reaction' | 'severity'>) => void
   deleteAllergy: (id: string) => void
   
   setChronicPrograms: (programs: ChronicProgram[]) => void
@@ -46,6 +55,7 @@ const initialState = {
   medications: [],
   allergies: [],
   chronicPrograms: [],
+  appointments: [],
   isLoading: false,
 }
 
@@ -74,10 +84,102 @@ export const useHealthStore = create<HealthStore>((set) => ({
     vitals: [vital, ...state.vitals],
   })),
 
+  addVitalRecord: (vital) => set((state) => {
+    const now = new Date().toISOString()
+    const nextVitals: Vital[] = []
+
+    if (vital.bloodPressure) {
+      nextVitals.push({
+        id: crypto.randomUUID(),
+        userId: 'local',
+        type: 'blood_pressure',
+        value: vital.bloodPressure.systolic,
+        secondaryValue: vital.bloodPressure.diastolic,
+        unit: 'mmHg',
+        recordedAt: now,
+        notes: vital.notes,
+        createdAt: now,
+      })
+    }
+
+    if (vital.heartRate) {
+      nextVitals.push({
+        id: crypto.randomUUID(),
+        userId: 'local',
+        type: 'heart_rate',
+        value: vital.heartRate,
+        unit: 'bpm',
+        recordedAt: now,
+        notes: vital.notes,
+        createdAt: now,
+      })
+    }
+
+    if (vital.bloodSugar) {
+      nextVitals.push({
+        id: crypto.randomUUID(),
+        userId: 'local',
+        type: 'blood_sugar',
+        value: vital.bloodSugar,
+        unit: 'mg/dL',
+        recordedAt: now,
+        notes: vital.notes,
+        createdAt: now,
+      })
+    }
+
+    if (vital.temperature) {
+      nextVitals.push({
+        id: crypto.randomUUID(),
+        userId: 'local',
+        type: 'temperature',
+        value: vital.temperature,
+        unit: '°C',
+        recordedAt: now,
+        notes: vital.notes,
+        createdAt: now,
+      })
+    }
+
+    if (vital.weight) {
+      nextVitals.push({
+        id: crypto.randomUUID(),
+        userId: 'local',
+        type: 'weight',
+        value: vital.weight,
+        unit: 'kg',
+        recordedAt: now,
+        notes: vital.notes,
+        createdAt: now,
+      })
+    }
+
+    return { vitals: [...nextVitals, ...state.vitals] }
+  }),
+
   setMedications: (medications) => set({ medications }),
   
   addMedication: (medication) => set((state) => ({
-    medications: [medication, ...state.medications],
+    medications: [{
+      id: medication.id || crypto.randomUUID(),
+      userId: medication.userId || 'local',
+      name: medication.name,
+      dosage: medication.dosage,
+      frequency: medication.frequency,
+      startDate: medication.startDate || new Date().toISOString(),
+      endDate: medication.endDate,
+      isActive: medication.isActive ?? true,
+      purpose: medication.instructions || medication.purpose,
+      reminders: medication.times?.map((time) => ({
+        id: crypto.randomUUID(),
+        medicationId: medication.id || 'local',
+        time,
+        days: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
+        isEnabled: true,
+      })),
+      createdAt: medication.createdAt || new Date().toISOString(),
+      updatedAt: medication.updatedAt || new Date().toISOString(),
+    }, ...state.medications],
   })),
   
   updateMedication: (id, updates) => set((state) => ({
@@ -93,7 +195,16 @@ export const useHealthStore = create<HealthStore>((set) => ({
   setAllergies: (allergies) => set({ allergies }),
   
   addAllergy: (allergy) => set((state) => ({
-    allergies: [allergy, ...state.allergies],
+    allergies: [{
+      id: allergy.id || crypto.randomUUID(),
+      userId: allergy.userId || 'local',
+      allergen: allergy.allergen,
+      type: allergy.type || 'other',
+      severity: allergy.severity,
+      reaction: allergy.reaction,
+      diagnosedDate: allergy.diagnosedDate,
+      createdAt: allergy.createdAt || new Date().toISOString(),
+    }, ...state.allergies],
   })),
   
   deleteAllergy: (id) => set((state) => ({

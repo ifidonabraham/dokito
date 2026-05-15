@@ -6,44 +6,50 @@ import { create } from 'zustand'
 import type { Facility, SupportedLanguage, EmergencyState } from '@/lib/types'
 
 interface EmergencyStore extends EmergencyState {
+  // Extra UI state not in EmergencyState
+  isEmergencyMode: boolean
+  activeView: 'map' | 'voice'
+  userLocation: { lat: number; lng: number } | null
+  nearestFacilities: Facility[]
+  emergencyType: string | null
+
   // Actions
   activateEmergency: () => void
   deactivateEmergency: () => void
   setUserLocation: (location: { lat: number; lng: number }) => void
+  setCurrentLocation: (location: GeolocationCoordinates) => void
+  setNearestFacilities: (facilities: Facility[]) => void
   findNearestFacilities: (location: { lat: number; lng: number }) => void
   setActiveView: (view: 'map' | 'voice') => void
   setDestination: (facility: Facility | null) => void
   updateJourney: (eta: number, distance: number, progress: number) => void
   addSymptomAnswer: (questionId: string, answer: string) => void
   setLanguage: (lang: SupportedLanguage) => void
+  setEmergencyType: (type: string | null) => void
   toggleVoice: (active: boolean) => void
   reset: () => void
 }
 
-const initialState: EmergencyState & { 
-  isEmergencyMode: boolean
-  activeView: 'map' | 'voice'
-  userLocation: { lat: number; lng: number } | null
-  nearestFacilities: Facility[]
-} = {
+const initialState = {
   isActive: false,
   isEmergencyMode: false,
-  activeView: 'map',
+  activeView: 'map' as const,
   userLocation: null,
-  nearestFacilities: [],
+  nearestFacilities: [] as Facility[],
+  emergencyType: null,
   isVoiceActive: false,
   currentLocation: null,
   destination: null,
   eta: null,
   distance: null,
   routeProgress: 0,
-  symptomAnswers: {},
-  language: 'en',
+  symptomAnswers: {} as Record<string, string>,
+  language: 'en' as SupportedLanguage,
   journeyStartTime: null,
   journeyId: null,
 }
 
-export const useEmergencyStore = create<EmergencyStore & typeof initialState>((set) => ({
+export const useEmergencyStore = create<EmergencyStore>((set) => ({
   ...initialState,
 
   activateEmergency: () => set({
@@ -66,12 +72,28 @@ export const useEmergencyStore = create<EmergencyStore & typeof initialState>((s
     userLocation: location,
   }),
 
-  findNearestFacilities: () => set((state) => {
-    // This would normally call an API - for now we set mock facilities
-    return {
-      nearestFacilities: state.nearestFacilities,
-    }
+  setNearestFacilities: (facilities) => set({
+    nearestFacilities: facilities,
   }),
+
+  setCurrentLocation: (location) => set({
+    currentLocation: location,
+    userLocation: { lat: location.latitude, lng: location.longitude },
+  }),
+
+  findNearestFacilities: (location) => {
+    // Fire-and-forget: fetch emergency facilities from API and update store
+    fetch(`/api/facilities?lat=${location.lat}&lng=${location.lng}&hasEmergency=true&limit=5`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.facilities && Array.isArray(data.facilities)) {
+          set({ nearestFacilities: data.facilities })
+        }
+      })
+      .catch((error) => {
+        console.error('Could not load emergency facilities:', error)
+      })
+  },
 
   setActiveView: (view) => set({
     activeView: view,
@@ -96,6 +118,10 @@ export const useEmergencyStore = create<EmergencyStore & typeof initialState>((s
 
   setLanguage: (lang) => set({
     language: lang,
+  }),
+
+  setEmergencyType: (type) => set({
+    emergencyType: type,
   }),
 
   toggleVoice: (active) => set({

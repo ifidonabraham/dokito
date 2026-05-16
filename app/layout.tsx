@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, Plus_Jakarta_Sans } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
@@ -9,8 +8,9 @@ import { MobileBottomNav } from '@/components/layout/mobile-bottom-nav'
 import { EmergencyButton } from '@/components/emergency/emergency-button'
 import { EmergencyModal } from '@/components/emergency/emergency-modal'
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-jakarta" });
+// Use system fonts as fallback - Google Fonts will load dynamically in the CSS if available
+const inter = { variable: '' };
+const jakarta = { variable: '' };
 
 export const metadata: Metadata = {
   title: 'DOKITO | AI Health Support for Nigeria',

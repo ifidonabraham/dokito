@@ -37,53 +37,52 @@ type FacilityResult = {
   isSampleData?: boolean;
 };
 
-const SAMPLE_FACILITIES: FacilityResult[] = [
-  {
-    id: "sample-unilag-medical-centre",
-    name: "University of Lagos Medical Centre",
-    type: "clinic",
-    address: "University of Lagos, Akoka, Lagos",
-    phone: "+234 1 293 0330",
-    location: { lat: 6.5199, lng: 3.3974 },
-    rating: 4.1,
-    is24Hours: true,
-    hasEmergency: true,
-    services: ["Emergency", "General Practice", "Student Health", "First Aid"],
-    state: "Lagos",
-    lga: "Lagos Mainland",
-    isSampleData: true,
-  },
-  {
-    id: "sample-luth",
-    name: "Lagos University Teaching Hospital",
-    type: "teaching_hospital",
-    address: "Idi-Araba, Lagos",
-    phone: "+234 1 234 5678",
-    location: { lat: 6.5166, lng: 3.3584 },
-    rating: 4.2,
-    is24Hours: true,
-    hasEmergency: true,
-    services: ["Emergency", "Surgery", "Pediatrics", "Maternity", "ICU", "Cardiology"],
-    state: "Lagos",
-    lga: "Lagos Mainland",
-    isSampleData: true,
-  },
-  {
-    id: "sample-reddington",
-    name: "Reddington Hospital",
-    type: "private_hospital",
-    address: "12, Idowu Martins Street, Victoria Island, Lagos",
-    phone: "+234 1 280 7100",
-    location: { lat: 6.4281, lng: 3.4219 },
-    rating: 4.5,
-    is24Hours: true,
-    hasEmergency: true,
-    services: ["Emergency", "Diagnostics", "Surgery", "ICU", "Oncology"],
-    state: "Lagos",
-    lga: "Eti-Osa",
-    isSampleData: true,
-  },
-];
+/* SAMPLE_FACILITIES removed - prefer Supabase then Google Places Web API */
+
+async function fetchPlacesFromGoogle(lat: number, lng: number, type: string, limit = 20) {
+  try {
+    const serverKey = process.env.GOOGLE_MAPS_SERVER_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (!serverKey) return [];
+
+    const typeMap: Record<string,string> = {
+      hospital: "hospital",
+      pharmacy: "pharmacy",
+      clinic: "health",
+      all: "",
+    };
+
+    const placeType = typeMap[type] ?? "";
+    const location = `${lat},${lng}`;
+    const radius = 5000; // 5km
+
+    const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${encodeURIComponent(location)}&radius=${radius}&key=${encodeURIComponent(serverKey)}${placeType ? `&type=${encodeURIComponent(placeType)}` : ""}`;
+
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!data.results || data.results.length === 0) return [];
+
+    return (data.results || []).slice(0, limit).map((p: any) => ({
+      id: p.place_id || String(Math.random()),
+      name: p.name,
+      type: (p.types && p.types[0]) || "clinic",
+      address: p.vicinity || p.formatted_address || "",
+      phone: undefined,
+      location: { lat: p.geometry.location.lat, lng: p.geometry.location.lng },
+      rating: p.rating,
+      is24Hours: (p.opening_hours && p.opening_hours.open_now) || false,
+      hasEmergency: false,
+      services: [],
+      state: undefined,
+      lga: undefined,
+      isSampleData: false,
+    }));
+  } catch (err) {
+    console.error("Google Places fetch failed:", err);
+    return [];
+  }
+}
+
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -95,12 +94,25 @@ export async function GET(request: Request) {
   const query = searchParams.get("query") || "";
   const limit = Math.min(parseInt(searchParams.get("limit") || "20", 10), 100);
 
-  let facilities = await loadFacilitiesFromSupabase();
-  let source: "supabase" | "sample" = "supabase";
+  const serverKey = process.env.GOOGLE_MAPS_SERVER_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+  // Prefer Google Places when a location and server key are provided, so users
+  // see nearby facilities for their scanned location. Fall back to Supabase
+  // only when Google returns no results.
+  let facilities: FacilityResult[] = [];
+  let source: "google" | "supabase" | "none" = "none";
+
+  if (lat && lng && serverKey) {
+    const googleResults = await fetchPlacesFromGoogle(lat, lng, type, limit);
+    if (googleResults.length > 0) {
+      facilities = googleResults as FacilityResult[];
+      source = "google";
+    }
+  }
 
   if (facilities.length === 0) {
-    facilities = SAMPLE_FACILITIES;
-    source = "sample";
+    facilities = await loadFacilitiesFromSupabase();
+    if (facilities.length > 0) source = "supabase";
   }
 
   facilities = applyFilters(facilities, { type, is24Hours, hasEmergency, query });

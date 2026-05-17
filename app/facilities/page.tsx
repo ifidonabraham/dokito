@@ -66,7 +66,8 @@ export default function FacilitiesPage() {
   // Load Google Maps script
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    const defaultLoc = { lat: 6.5244, lng: 3.3792 };
+    // Default to center of Nigeria (Abuja area) instead of just Lagos
+    const defaultLoc = { lat: 9.0765, lng: 7.3986 };
 
     const resolveLocation = (onLocation: (location: { lat: number; lng: number }) => void) => {
       if (!navigator.geolocation) {
@@ -225,10 +226,20 @@ export default function FacilitiesPage() {
       radius: 5000,
     };
 
-    placesService.textSearch(request, (results, status) => {
-      if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-        setIsSampleData(false);
-        const facilitiesData: Facility[] = results.map((place) => {
+    // Set a timeout to fallback to API if Places Service doesn't respond
+    const timeoutId = setTimeout(() => {
+      console.log("PlacesService timeout - using fallback API");
+      setMapsError("Google Places API timed out. Using fallback search.");
+      searchFallbackFacilities(userLocation, type);
+    }, 5000);
+
+    try {
+      placesService.textSearch(request, (results, status) => {
+        clearTimeout(timeoutId);
+        
+        if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+          setIsSampleData(false);
+          const facilitiesData: Facility[] = results.map((place) => {
           // Calculate distance
           const distance = calculateDistance(
             userLocation.lat,
@@ -280,7 +291,13 @@ export default function FacilitiesPage() {
         return;
       }
       setIsLoading(false);
-    });
+      });
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error("PlacesService error:", error);
+      setMapsError("Google Places API error. Using offline facility search.");
+      searchFallbackFacilities(userLocation, type);
+    }
   }, [placesService, userLocation, mapsError, searchFallbackFacilities]);
 
   // Calculate distance between two coordinates
